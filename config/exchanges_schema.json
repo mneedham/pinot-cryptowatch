@@ -1,0 +1,15 @@
+{
+  "schemaName" : "exchanges",
+  "dimensionFieldSpecs" : [ 
+  {
+    "name" : "id",
+    "dataType" : "STRING"
+  }, {
+    "name" : "symbol",
+    "dataType" : "STRING"
+  }, {
+    "name" : "name",
+    "dataType" : "STRING"
+  }
+ ]
+}

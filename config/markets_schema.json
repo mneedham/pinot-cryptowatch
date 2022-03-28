@@ -1,0 +1,15 @@
+{
+  "schemaName" : "markets",
+  "dimensionFieldSpecs" : [ 
+  {
+    "name" : "id",
+    "dataType" : "STRING"
+  }, {
+    "name" : "exchange",
+    "dataType" : "STRING"
+  }, {
+    "name" : "pair",
+    "dataType" : "STRING"
+  }
+ ]
+}

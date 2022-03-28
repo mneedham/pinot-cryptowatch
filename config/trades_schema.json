@@ -1,0 +1,38 @@
+{
+  "schemaName" : "trades",
+  "dimensionFieldSpecs" : [ {
+    "name" : "externalId",
+    "dataType" : "STRING"
+  }, {
+    "name" : "orderSide",
+    "dataType" : "STRING"
+  }, {
+    "name" : "exchangeId",
+    "dataType" : "STRING"
+  }, {
+    "name" : "currencyPairId",
+    "dataType" : "STRING"
+  }, {
+    "name" : "marketId",
+    "dataType" : "STRING"
+  } ],
+  "metricFieldSpecs" : [ {
+    "name" : "price",
+    "dataType" : "DOUBLE"
+  }, {
+    "name" : "amount",
+    "dataType" : "DOUBLE"
+  } ],
+  "dateTimeFieldSpecs" : [ {
+    "name" : "tsNano",
+    "dataType" : "LONG",
+    "format": "1:NANOSECONDS:EPOCH",
+    "granularity": "1:NANOSECONDS"
+  },
+  {
+    "name" : "tsMs",
+    "dataType" : "TIMESTAMP",
+    "format": "1:MILLISECONDS:EPOCH",
+    "granularity": "1:MILLISECONDS"
+  }]
+}

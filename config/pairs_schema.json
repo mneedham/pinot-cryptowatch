@@ -1,0 +1,27 @@
+{
+  "schemaName" : "pairs",
+  "dimensionFieldSpecs" : [ 
+  {
+    "name" : "id",
+    "dataType" : "LONG"
+  }, {
+    "name" : "base",
+    "dataType" : "LONG"
+  }, {
+    "name" : "baseSymbol",
+    "dataType" : "STRING"
+  }, {
+    "name" : "baseName",
+    "dataType" : "STRING"
+  }, {
+    "name" : "quote",
+    "dataType" : "LONG"
+  }, {
+    "name" : "quoteSymbol",
+    "dataType" : "STRING"
+  }, {
+    "name" : "quoteName",
+    "dataType" : "STRING"
+  }
+ ]
+}
