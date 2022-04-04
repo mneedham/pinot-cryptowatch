@@ -1,5 +1,8 @@
 {
   "schemaName" : "markets",
+  "primaryKeyColumns": [
+    "id"
+  ],  
   "dimensionFieldSpecs" : [ 
   {
     "name" : "id",

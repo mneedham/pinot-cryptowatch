@@ -1,6 +1,7 @@
 {
   "tableName": "exchanges",
   "tableType": "OFFLINE",
+  "isDimTable": true,
   "segmentsConfig": {
     "replication": 1,
     "schemaName": "exchanges"
@@ -14,7 +15,7 @@
   },
   "ingestionConfig": {
     "batchIngestionConfig": {
-      "segmentIngestionType": "APPEND",
+      "segmentIngestionType": "REFRESH",
       "segmentIngestionFrequency": "DAILY"
     }
   },

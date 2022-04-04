@@ -1,0 +1,94 @@
+= Cryptowatch on Pinot
+
+https://docs.cryptowat.ch/websocket-api/data-subscriptions/trades
+
+[source,bash]
+----
+docker run \
+  -v ${PWD}/trades.json:/tmp/trades.json \
+  -v ${PWD}/output:/output \
+  apachepinot/pinot:0.9.3 JsonToPinotSchema \
+  -jsonFile /tmp/trades.json \
+  -pinotSchemaName="trades" \
+  -outputDir="/output" \
+  -metrics "marketUpdate.tradesUpdate.trades.priceStr,marketUpdate.tradesUpdate.trades.amountStr" \
+  -timeColumnName marketUpdate.tradesUpdate.trades.timestampNano \
+  -fieldsToUnnest=marketUpdate.tradesUpdate.trades,marketUpdate.market
+----
+
+trades table:
+
+[source,bash]
+----
+docker exec -it pinot-controller-crypto bin/pinot-admin.sh AddTable   \
+  -tableConfigFile /config/trades_table.json   \
+  -schemaFile /config/trades_schema.json \
+  -exec
+----
+
+markets table:
+
+[source,bash]
+----
+docker exec -it pinot-controller-crypto bin/pinot-admin.sh AddTable   \
+  -tableConfigFile /config/markets_table.json   \
+  -schemaFile /config/markets_schema.json \
+  -exec
+----
+
+[source,bash]
+----
+docker exec -it pinot-controller-crypto bin/pinot-admin.sh LaunchDataIngestionJob   \
+  -jobSpecFile /config/markets-job-spec.yml
+----
+
+exchanges table:
+
+[source,bash]
+----
+docker exec -it pinot-controller-crypto bin/pinot-admin.sh AddTable   \
+  -tableConfigFile /config/exchanges_table.json   \
+  -schemaFile /config/exchanges_schema.json \
+  -exec
+----
+
+[source,bash]
+----
+docker exec -it pinot-controller-crypto bin/pinot-admin.sh LaunchDataIngestionJob   \
+  -jobSpecFile /config/exchanges-job-spec.yml
+----
+
+pairs table:
+
+[source,bash]
+----
+docker exec -it pinot-controller-crypto bin/pinot-admin.sh AddTable   \
+  -tableConfigFile /config/pairs_table.json   \
+  -schemaFile /config/pairs_schema.json \
+  -exec
+----
+
+[source,bash]
+----
+docker exec -it pinot-controller-crypto bin/pinot-admin.sh LaunchDataIngestionJob   \
+  -jobSpecFile /config/pairs-job-spec.yml
+----
+
+
+[source, bash]
+----
+docker exec -i kafka-crypto /opt/kafka/bin/kafka-topics.sh \
+  --bootstrap-server localhost:9092 \
+  --topic trades \
+  --create \
+  --partitions 10
+----
+
+[source, bash]
+----
+docker exec -i kafka-crypto /opt/kafka/bin/kafka-console-consumer.sh \
+  --bootstrap-server localhost:9092 \
+  --topic trades \
+  --from-beginning \
+  --max-messages 5
+----

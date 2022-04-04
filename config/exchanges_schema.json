@@ -1,5 +1,8 @@
 {
   "schemaName" : "exchanges",
+  "primaryKeyColumns": [
+    "id"
+  ],  
   "dimensionFieldSpecs" : [ 
   {
     "name" : "id",

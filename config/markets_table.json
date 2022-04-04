@@ -1,6 +1,7 @@
 {
   "tableName": "markets",
   "tableType": "OFFLINE",
+  "isDimTable": true,
   "segmentsConfig": {
     "replication": 1,
     "schemaName": "markets"
@@ -14,7 +15,7 @@
   },
   "ingestionConfig": {
     "batchIngestionConfig": {
-      "segmentIngestionType": "APPEND",
+      "segmentIngestionType": "REFRESH",
       "segmentIngestionFrequency": "DAILY"
     }
   },
