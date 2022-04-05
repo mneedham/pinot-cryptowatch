@@ -4,8 +4,8 @@ executionFrameworkSpec:
   segmentTarPushJobRunnerClassName: 'org.apache.pinot.plugin.ingestion.batch.standalone.SegmentTarPushJobRunner'
 jobType: SegmentCreationAndTarPush
 inputDirURI: '/input'
-includeFileNamePattern: 'glob:**/trades.json'
-outputDirURI: '/data'
+includeFileNamePattern: 'glob:**/*.jsonlines'
+outputDirURI: '/data/trades'
 overwriteOutput: true
 pinotFSSpecs:
   - scheme: file

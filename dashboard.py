@@ -4,6 +4,7 @@ import plotly.graph_objects as go
 from dash import Dash, dcc, html, Input, Output, dash_table  # pip install dash (version 2.0.0 or higher)
 from pinotdb import connect, db
 import datetime
+import math
 
 connection = connect(
             host="localhost",
@@ -99,6 +100,7 @@ def render_content(tab):
             dcc.Graph(id='prices', figure={}),
             dcc.Graph(id='markets', figure={}),
             dcc.Graph(id='assets', figure={}),
+            dcc.Graph(id='order_side', figure={}),
             html.Div([
                 html.H4('Latest Trades'),
                 html.Div(id='latest-trades-bases')
@@ -115,7 +117,8 @@ def render_content(tab):
     [Output(component_id='latest-trades-bases', component_property='children'),
      Output(component_id='prices', component_property='figure'),
      Output(component_id='markets', component_property='figure'),
-     Output(component_id='assets', component_property='figure')
+     Output(component_id='assets', component_property='figure'),
+     Output(component_id='order_side', component_property='figure')
      ],
     [Input('bases-dropdown', 'value'), Input('interval-component-by-asset', 'n_intervals')]
 )
@@ -155,45 +158,98 @@ def bases(base_name, n):
     from trades 
     WHERE lookUp('pairs', 'baseName', 'id', currencyPairId) = (%(baseName)s) 
     AND lookUp('pairs', 'quoteName', 'id', currencyPairId) = 'United States Dollar'
-    AND tsMs > cast(ago('PT5M') as long)
+    AND tsMs > cast(ago('PT1M') as long)
     """, {"baseName": base_name})
+    df_now = pd.DataFrame(cursor, columns=[item[0] for item in cursor.description])
 
-    df = pd.DataFrame(cursor, columns=[item[0] for item in cursor.description])
+    cursor.execute("""
+    select avg(price) AS avgPrice, max(price) as maxPrice, min(price) AS minPrice, 
+           count(*) AS count, sum(amount) AS amountTraded
+    from trades 
+    WHERE lookUp('pairs', 'baseName', 'id', currencyPairId) = (%(baseName)s) 
+    AND lookUp('pairs', 'quoteName', 'id', currencyPairId) = 'United States Dollar'
+    AND tsMs > cast(ago('PT2M') as long) 
+    AND tsMs < cast(ago('PT1M') as long)
+    """, {"baseName": base_name})
+    df_prev = pd.DataFrame(cursor, columns=[item[0] for item in cursor.description])
+    print(df_prev)
 
     fig = go.Figure()
-    fig.add_trace(go.Indicator(
-        mode = "number",
-        title= {'text': "Min Price"},
-        value = df["minPrice"][0],
-        domain = {'row': 0, 'column': 0})
-    )
-    fig.add_trace(go.Indicator(
-        mode = "number",
-        title= {'text': "Average Price"},
-        value = df["avgPrice"][0],
-        domain = {'row': 0, 'column': 1})
-    )
-    fig.add_trace(go.Indicator(
-        mode = "number",
-        title= {'text': "Max Price"},
-        value = df["maxPrice"][0],
-        domain = {'row': 0, 'column': 2})
-    )
-    fig.add_trace(go.Indicator(
-        mode = "number",
-        title= {'text': "Transactions"},
-        value = df["count"][0],
-        domain = {'row': 1, 'column': 0})
-    )
-    fig.add_trace(go.Indicator(
-        mode = "number",
-        title= {'text': "Amount Traded"},
-        value = df["amountTraded"][0],
-        domain = {'row': 1, 'column': 1})
-    )
-    fig.update_layout(
-        grid = {"rows": 2, "columns": 3,  'pattern': "independent"},
-    )
+    if df_now["count"][0] > 0:
+        if df_prev["count"][0] > 0:
+            fig.add_trace(go.Indicator(
+                mode = "number+delta",
+                title= {'text': "Min Price"},
+                value = df_now["minPrice"][0],
+                delta = {'reference': df_prev["minPrice"][0]    , 'relative': True},
+                domain = {'row': 0, 'column': 0})
+            )
+            fig.add_trace(go.Indicator(
+                mode = "number+delta",
+                title= {'text': "Average Price"},
+                value = df_now["avgPrice"][0],
+                delta = {'reference': df_prev["avgPrice"][0], 'relative': True},
+                domain = {'row': 0, 'column': 1})
+            )
+            fig.add_trace(go.Indicator(
+                mode = "number+delta",
+                title= {'text': "Max Price"},
+                value = df_now["maxPrice"][0],
+                delta = {'reference': df_prev["maxPrice"][0], 'relative': True},
+                domain = {'row': 0, 'column': 2})
+            )
+            fig.add_trace(go.Indicator(
+                mode = "number+delta",
+                title= {'text': "Transactions"},
+                value = df_now["count"][0],
+                delta = {'reference': df_prev["count"][0], 'relative': True},
+                domain = {'row': 1, 'column': 0})
+            )
+            fig.add_trace(go.Indicator(
+                mode = "number+delta",
+                title= {'text': "Amount Traded"},
+                value = df_now["amountTraded"][0],
+                delta = {'reference': df_prev["amountTraded"][0], 'relative': True},
+                domain = {'row': 1, 'column': 1})
+            )
+        else:
+            fig.add_trace(go.Indicator(
+                mode = "number",
+                title= {'text': "Min Price"},
+                value = df_now["minPrice"][0],
+                domain = {'row': 0, 'column': 0})
+            )
+            fig.add_trace(go.Indicator(
+                mode = "number",
+                title= {'text': "Average Price"},
+                value = df_now["avgPrice"][0],
+                domain = {'row': 0, 'column': 1})
+            )
+            fig.add_trace(go.Indicator(
+                mode = "number",
+                title= {'text': "Max Price"},
+                value = df_now["maxPrice"][0],
+                domain = {'row': 0, 'column': 2})
+            )
+            fig.add_trace(go.Indicator(
+                mode = "number",
+                title= {'text': "Transactions"},
+                value = df_now["count"][0],
+                domain = {'row': 1, 'column': 0})
+            )
+            fig.add_trace(go.Indicator(
+                mode = "number",
+                title= {'text': "Amount Traded"},
+                value = df_now["amountTraded"][0],
+                domain = {'row': 1, 'column': 1})
+            )
+        fig.update_layout(
+            grid = {"rows": 2, "columns": 3,  'pattern': "independent"},
+        )       
+    else:
+        fig.update_layout(
+            annotations = [{"text": "No transactions found", "xref": "paper", "yref": "paper", "showarrow": False, "font": {"size": 28}}]
+        )
 
     cursor.execute("""
     select lookUp('exchanges', 'name', 'id', exchangeId) AS market, count(*) AS count
@@ -215,8 +271,19 @@ def bases(base_name, n):
     df = pd.DataFrame(cursor, columns=[item[0] for item in cursor.description])
     fig_asset = px.bar(df, x='asset', y='count', title="Top assets")
 
+    cursor.execute("""
+    select orderSide, count(*) AS count
+    from trades 
+    WHERE lookUp('pairs', 'baseName', 'id', currencyPairId) = (%(baseName)s) 
+    AND orderSide != 'null'
+    group by orderSide
+	order by count DESC
+    """, {"baseName": base_name})
+    df = pd.DataFrame(cursor, columns=[item[0] for item in cursor.description])
+    fig_order_side = px.bar(df, x='orderSide', y='count', title="Order Side")
 
-    return latest_trades, fig, fig_market, fig_asset
+
+    return latest_trades, fig, fig_market, fig_asset, fig_order_side
 
 @app.callback(
     [Output(component_id='latest-trades', component_property='children'),

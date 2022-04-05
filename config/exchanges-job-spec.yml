@@ -5,7 +5,7 @@ executionFrameworkSpec:
 jobType: SegmentCreationAndTarPush
 inputDirURI: '/input'
 includeFileNamePattern: 'glob:**/exchanges.json'
-outputDirURI: '/data'
+outputDirURI: '/data/exchanges'
 overwriteOutput: true
 pinotFSSpecs:
   - scheme: file
