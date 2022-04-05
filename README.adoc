@@ -92,3 +92,12 @@ docker exec -i kafka-crypto /opt/kafka/bin/kafka-console-consumer.sh \
   --from-beginning \
   --max-messages 5
 ----
+
+## Ideas
+
+* Calculate the total market capitalisation
+* Candle light chart showing the moving average of prices for a specific currency pair
+* Number of trades per <time-slot> for each pair
+* Drill down to see what's happening in e.g. Bitcoin
+* What's happening right now vs historical analysis
+* Biggest gainers (in terms of coins/prices)

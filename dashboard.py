@@ -12,34 +12,211 @@ connection = connect(
             scheme=( "http"),
         )
 
+def quotes():
+    cursor  = connection.cursor()
+    cursor.execute("""
+    select count(*) AS count,
+       lookUp('pairs', 'quoteName', 'id', currencyPairId) AS quoteName
+    from trades 
+    where quoteName != 'null'
+    group by quoteName
+    order by count desc
+    limit 20
+    """)
+    df = pd.DataFrame(cursor, columns=[item[0] for item in cursor.description]) 
+
+    return df["quoteName"].values
+
+def bases():
+    cursor  = connection.cursor()
+    cursor.execute("""
+    select count(*) AS count,
+       lookUp('pairs', 'baseName', 'id', currencyPairId) AS baseName
+    from trades 
+    where baseName != 'null'
+    group by baseName
+    order by count desc
+    limit 20
+    """)
+    df = pd.DataFrame(cursor, columns=[item[0] for item in cursor.description]) 
+
+    return df["baseName"].values
+
 external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
 app = Dash(__name__, external_stylesheets=external_stylesheets)
+app.title = "Crypto Watch Dashboard"
+app.config.suppress_callback_exceptions=True
 
 # ------------------------------------------------------------------------------
 # App layout
+all_quotes = quotes()
+all_bases = bases()
+
+
 app.layout = html.Div([
     html.H1("Crypto Watch Dashboard", style={'text-align': 'center'}),
     html.Div(id='latest-timestamp'),
-    html.Div([
-        html.H4('Latest Trades'),
-        html.Div(id='latest-trades')
+        dcc.Tabs(id="tabs-example-graph", value='overview', children=[
+        dcc.Tab(label='Overview', value='overview'),
+        dcc.Tab(label='By asset', value='by-asset'),
     ]),
-    html.Div([
-        html.H4('Most Traded Coins in USD - Buy Side'),
-        dcc.Graph(id='top-pairs-buy-side', figure={})
-    ]),
-    html.Div([
-        html.H4('Most Traded Coins in USD - Sell Side'),
-        dcc.Graph(id='top-pairs-sell-side', figure={})
-    ]),
-    dcc.Interval(
-        id='interval-component',
-        interval=1 * 1000,  # in milliseconds
-        n_intervals=0
-    )
+    html.Div(id='tabs-content-example-graph')
 ])
 
+@app.callback(Output('tabs-content-example-graph', 'children'),
+              Input('tabs-example-graph', 'value'))
+def render_content(tab):
+    if tab == 'overview':
+        return html.Div([
+        html.Div([
+            html.H2('Latest Trades'),
+            html.Div(id='latest-trades')
+        ]),
+        html.Div([
+            html.H2('Most Traded Coins'),
+            html.Label(children=[
+                html.Span("Quote currency:", style={"font-weight": "bold"}),
+                dcc.Dropdown(all_quotes, all_quotes[0], id='quotes-dropdown'),
+            ]),        
+            html.H3("Buy Side"),
+            dcc.Graph(id='top-pairs-buy-side', figure={}),
+            html.H3 ("Sell Side"),
+            dcc.Graph(id='top-pairs-sell-side', figure={})
+        ]),
+        dcc.Interval(
+            id='interval-component',
+            interval=10 * 1000,  # in milliseconds
+            n_intervals=0
+        ) 
+        ])
+    if tab == 'by-asset':
+        return html.Div([
+            html.H2("By Asset"),
+            html.Label(children=[
+                # html.Span("Asset:", style={"font-weight": "bold"}),
+                dcc.Dropdown(all_bases, all_bases[0], id='bases-dropdown'),
+            ]),  
+            dcc.Graph(id='prices', figure={}),
+            dcc.Graph(id='markets', figure={}),
+            dcc.Graph(id='assets', figure={}),
+            html.Div([
+                html.H4('Latest Trades'),
+                html.Div(id='latest-trades-bases')
+            ]),
+            dcc.Interval(
+            id='interval-component-by-asset',
+            interval=1 * 1000,  # in milliseconds
+            n_intervals=0
+        ) 
+        ])
 
+
+@app.callback(
+    [Output(component_id='latest-trades-bases', component_property='children'),
+     Output(component_id='prices', component_property='figure'),
+     Output(component_id='markets', component_property='figure'),
+     Output(component_id='assets', component_property='figure')
+     ],
+    [Input('bases-dropdown', 'value'), Input('interval-component-by-asset', 'n_intervals')]
+)
+def bases(base_name, n):
+    style_table = {'overflowX': 'auto'}
+    style_cell = {
+        'minWidth': '180px', 'width': '180px', 'maxWidth': '180px',
+        'overflow': 'hidden',
+        'textOverflow': 'ellipsis',
+    }
+
+    cursor = connection.cursor()
+
+    cursor.execute("""
+    select tsMs, currencyPairId, amount, price,  marketId, orderSide,
+           lookUp('pairs', 'baseName', 'id', currencyPairId) AS baseName,
+           lookUp('pairs', 'quoteName', 'id', currencyPairId) AS quoteName,
+           lookUp('markets', 'exchange', 'id', marketId) AS market,
+           lookUp('exchanges', 'name', 'id', exchangeId) AS exchange
+    from trades 
+    where baseName = (%(baseName)s) 
+    order by tsMs DESC
+    """, {"baseName": base_name})
+
+    df = pd.DataFrame(cursor, columns=[item[0] for item in cursor.description])    
+    df = df[["tsMs", "quoteName", "market", "exchange", "amount", "price", "orderSide"]]
+
+    latest_trades = [html.Div([dash_table.DataTable(
+        df.to_dict('records'), [{"name": i, "id": i} for i in df.columns],
+        style_table=style_table,
+        style_cell=style_cell
+    )])]
+
+    cursor.execute("""
+    select avg(price) AS avgPrice, max(price) as maxPrice, min(price) AS minPrice, 
+           count(*) AS count, sum(amount) AS amountTraded
+    from trades 
+    WHERE lookUp('pairs', 'baseName', 'id', currencyPairId) = (%(baseName)s) 
+    AND lookUp('pairs', 'quoteName', 'id', currencyPairId) = 'United States Dollar'
+    AND tsMs > cast(ago('PT5M') as long)
+    """, {"baseName": base_name})
+
+    df = pd.DataFrame(cursor, columns=[item[0] for item in cursor.description])
+
+    fig = go.Figure()
+    fig.add_trace(go.Indicator(
+        mode = "number",
+        title= {'text': "Min Price"},
+        value = df["minPrice"][0],
+        domain = {'row': 0, 'column': 0})
+    )
+    fig.add_trace(go.Indicator(
+        mode = "number",
+        title= {'text': "Average Price"},
+        value = df["avgPrice"][0],
+        domain = {'row': 0, 'column': 1})
+    )
+    fig.add_trace(go.Indicator(
+        mode = "number",
+        title= {'text': "Max Price"},
+        value = df["maxPrice"][0],
+        domain = {'row': 0, 'column': 2})
+    )
+    fig.add_trace(go.Indicator(
+        mode = "number",
+        title= {'text': "Transactions"},
+        value = df["count"][0],
+        domain = {'row': 1, 'column': 0})
+    )
+    fig.add_trace(go.Indicator(
+        mode = "number",
+        title= {'text': "Amount Traded"},
+        value = df["amountTraded"][0],
+        domain = {'row': 1, 'column': 1})
+    )
+    fig.update_layout(
+        grid = {"rows": 2, "columns": 3,  'pattern': "independent"},
+    )
+
+    cursor.execute("""
+    select lookUp('exchanges', 'name', 'id', exchangeId) AS market, count(*) AS count
+    from trades 
+    WHERE lookUp('pairs', 'baseName', 'id', currencyPairId) = (%(baseName)s) 
+    group by market
+	order by count DESC
+    """, {"baseName": base_name})
+    df = pd.DataFrame(cursor, columns=[item[0] for item in cursor.description])
+    fig_market = px.bar(df, x='market', y='count', title="Top markets")
+
+    cursor.execute("""
+    select lookUp('pairs', 'quoteName', 'id', currencyPairId) AS asset, count(*) AS count
+    from trades 
+    WHERE lookUp('pairs', 'baseName', 'id', currencyPairId) = (%(baseName)s) 
+    group by asset
+	order by count DESC
+    """, {"baseName": base_name})
+    df = pd.DataFrame(cursor, columns=[item[0] for item in cursor.description])
+    fig_asset = px.bar(df, x='asset', y='count', title="Top assets")
+
+
+    return latest_trades, fig, fig_market, fig_asset
 
 @app.callback(
     [Output(component_id='latest-trades', component_property='children'),
@@ -76,9 +253,10 @@ def latest_trades(n):
 @app.callback(
     [Output(component_id='top-pairs-buy-side', component_property='figure'),
      Output(component_id='top-pairs-sell-side', component_property='figure')],
-    [Input('interval-component', 'n_intervals')]
+    [Input('interval-component', 'n_intervals'), Input('quotes-dropdown', 'value')]
 )
-def top_pairs_buy_side(n):
+def top_pairs_buy_side(n, value):
+    print(value)
     cursor = connection.cursor()
 
     cursor.execute("""
@@ -86,10 +264,10 @@ def top_pairs_buy_side(n):
            lookUp('pairs', 'baseName', 'id', currencyPairId) AS baseName,
            lookUp('pairs', 'quoteName', 'id', currencyPairId) AS quoteName
     from trades 
-    where quoteName = 'United States Dollar' AND orderSide = 'BUYSIDE'
+    where quoteName = (%(quoteName)s) AND orderSide = 'BUYSIDE'
     group by baseName, quoteName
     order by totalAmount DESC
-    """)
+    """, {"quoteName": value})
     df_buy_side = pd.DataFrame(cursor, columns=[item[0] for item in cursor.description])
     fig_buy = px.bar(df_buy_side, x='baseName', y='totalAmount', log_y=True)
 
@@ -98,75 +276,14 @@ def top_pairs_buy_side(n):
            lookUp('pairs', 'baseName', 'id', currencyPairId) AS baseName,
            lookUp('pairs', 'quoteName', 'id', currencyPairId) AS quoteName
     from trades 
-    where quoteName = 'United States Dollar' AND orderSide = 'SELLSIDE'
+    where quoteName = (%(quoteName)s) AND orderSide = 'SELLSIDE'
     group by baseName, quoteName
     order by totalAmount DESC
-    """)
+    """, {"quoteName": value})
     df_sell_side = pd.DataFrame(cursor, columns=[item[0] for item in cursor.description])
     fig_sell = px.bar(df_sell_side, x='baseName', y='totalAmount', log_y=True)
 
     return [fig_buy, fig_sell]
-
-    # return [html.Div([dash_table.DataTable(
-    #     df.to_dict('records'), [{"name": i, "id": i} for i in df.columns],
-    #     style_table={'overflowX': 'auto'},
-    #     style_cell={
-    #         'minWidth': '180px', 'width': '180px', 'maxWidth': '180px',
-    #         'overflow': 'hidden',
-    #         'textOverflow': 'ellipsis',
-    #     }
-    # )])]
-
-# ------------------------------------------------------------------------------
-# Connect the Plotly graphs with Dash Components
-# @app.callback(
-#     [Output(component_id='output_container', component_property='children'),
-#      Output(component_id='my_bee_map', component_property='figure')],
-#     [Input(component_id='slct_year', component_property='value')]
-# )
-# def update_graph(option_slctd):
-#     print(option_slctd)
-#     print(type(option_slctd))
-# 
-#     container = "The year chosen by user was: {}".format(option_slctd)
-# 
-#     dff = df.copy()
-#     dff = dff[dff["Year"] == option_slctd]
-#     dff = dff[dff["Affected by"] == "Varroa_mites"]
-# 
-#     # Plotly Express
-#     fig = px.choropleth(
-#         data_frame=dff,
-#         locationmode='USA-states',
-#         locations='state_code',
-#         scope="usa",
-#         color='Pct of Colonies Impacted',
-#         hover_data=['State', 'Pct of Colonies Impacted'],
-#         color_continuous_scale=px.colors.sequential.YlOrRd,
-#         labels={'Pct of Colonies Impacted': '% of Bee Colonies'},
-#         template='plotly_dark'
-#     )
-# 
-#     # Plotly Graph Objects (GO)
-#     # fig = go.Figure(
-#     #     data=[go.Choropleth(
-#     #         locationmode='USA-states',
-#     #         locations=dff['state_code'],
-#     #         z=dff["Pct of Colonies Impacted"].astype(float),
-#     #         colorscale='Reds',
-#     #     )]
-#     # )
-#     #
-#     # fig.update_layout(
-#     #     title_text="Bees Affected by Mites in the USA",
-#     #     title_xanchor="center",
-#     #     title_font=dict(size=24),
-#     #     title_x=0.5,
-#     #     geo=dict(scope='usa'),
-#     # )
-# 
-#     return container, fig
-
 
 # ------------------------------------------------------------------------------
 if __name__ == '__main__':
