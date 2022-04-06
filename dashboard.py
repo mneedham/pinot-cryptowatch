@@ -70,8 +70,12 @@ def render_content(tab):
     if tab == 'overview':
         return html.Div([
         html.Div([
+            html.H2('Pairs'),
+            html.Div(id='pairs'),
+            html.H2('Assets'),
+            html.Div(id='assets'),
             html.H2('Latest Trades'),
-            html.Div(id='latest-trades')
+            html.Div(id='latest-trades'),
         ]),
         html.Div([
             html.H2('Most Traded Coins'),
@@ -86,7 +90,7 @@ def render_content(tab):
         ]),
         dcc.Interval(
             id='interval-component',
-            interval=10 * 1000,  # in milliseconds
+            interval=1 * 1000,  # in milliseconds
             n_intervals=0
         ) 
         ])
@@ -94,7 +98,6 @@ def render_content(tab):
         return html.Div([
             html.H2("By Asset"),
             html.Label(children=[
-                # html.Span("Asset:", style={"font-weight": "bold"}),
                 dcc.Dropdown(all_bases, all_bases[0], id='bases-dropdown'),
             ]),  
             dcc.Graph(id='prices', figure={}),
@@ -112,6 +115,63 @@ def render_content(tab):
         ) 
         ])
 
+
+def get_latest_trades(cursor, base_name):    
+    cursor.execute("""
+    select tsMs, currencyPairId, amount, price,  marketId, orderSide,
+           lookUp('pairs', 'baseName', 'id', currencyPairId) AS baseName,
+           lookUp('pairs', 'quoteName', 'id', currencyPairId) AS quoteName,
+           lookUp('markets', 'exchange', 'id', marketId) AS market,
+           lookUp('exchanges', 'name', 'id', exchangeId) AS exchange
+    from trades 
+    where baseName = (%(baseName)s) 
+    order by tsMs DESC
+    """, {"baseName": base_name})
+
+    df = pd.DataFrame(cursor, columns=[item[0] for item in cursor.description])    
+    return df[["tsMs", "quoteName", "market", "exchange", "amount", "price", "orderSide"]]
+
+def latest_period_prices(cursor, base_name):
+    cursor.execute("""
+    select avg(price) AS avgPrice, max(price) as maxPrice, min(price) AS minPrice, 
+           count(*) AS count, sum(amount) AS amountTraded
+    from trades 
+    WHERE lookUp('pairs', 'baseName', 'id', currencyPairId) = (%(baseName)s) 
+    AND lookUp('pairs', 'quoteName', 'id', currencyPairId) = 'United States Dollar'
+    AND tsMs > cast(ago('PT1M') as long)
+    """, {"baseName": base_name})
+
+    return pd.DataFrame(cursor, columns=[item[0] for item in cursor.description])
+
+def previous_period_prices(cursor, base_name):
+    cursor.execute("""
+    select avg(price) AS avgPrice, max(price) as maxPrice, min(price) AS minPrice, 
+           count(*) AS count, sum(amount) AS amountTraded
+    from trades 
+    WHERE lookUp('pairs', 'baseName', 'id', currencyPairId) = (%(baseName)s) 
+    AND lookUp('pairs', 'quoteName', 'id', currencyPairId) = 'United States Dollar'
+    AND tsMs > cast(ago('PT2M') as long) 
+    AND tsMs < cast(ago('PT1M') as long)
+    """, {"baseName": base_name})
+
+    return pd.DataFrame(cursor, columns=[item[0] for item in cursor.description])
+
+def add_delta_trace(fig, title, value, last_value, row, column):
+    fig.add_trace(go.Indicator(
+        mode = "number+delta",
+        title= {'text': title},
+        value = value,
+        delta = {'reference': last_value, 'relative': True},
+        domain = {'row': row, 'column': column})
+    )
+
+def add_trace(fig, title, value, row, column):
+    fig.add_trace(go.Indicator(
+        mode = "number",
+        title= {'text': title},
+        value = value,
+        domain = {'row': row, 'column': column})
+    )
 
 @app.callback(
     [Output(component_id='latest-trades-bases', component_property='children'),
@@ -132,117 +192,30 @@ def bases(base_name, n):
 
     cursor = connection.cursor()
 
-    cursor.execute("""
-    select tsMs, currencyPairId, amount, price,  marketId, orderSide,
-           lookUp('pairs', 'baseName', 'id', currencyPairId) AS baseName,
-           lookUp('pairs', 'quoteName', 'id', currencyPairId) AS quoteName,
-           lookUp('markets', 'exchange', 'id', marketId) AS market,
-           lookUp('exchanges', 'name', 'id', exchangeId) AS exchange
-    from trades 
-    where baseName = (%(baseName)s) 
-    order by tsMs DESC
-    """, {"baseName": base_name})
-
-    df = pd.DataFrame(cursor, columns=[item[0] for item in cursor.description])    
-    df = df[["tsMs", "quoteName", "market", "exchange", "amount", "price", "orderSide"]]
-
+    df = get_latest_trades(cursor, base_name)
     latest_trades = [html.Div([dash_table.DataTable(
         df.to_dict('records'), [{"name": i, "id": i} for i in df.columns],
         style_table=style_table,
         style_cell=style_cell
     )])]
 
-    cursor.execute("""
-    select avg(price) AS avgPrice, max(price) as maxPrice, min(price) AS minPrice, 
-           count(*) AS count, sum(amount) AS amountTraded
-    from trades 
-    WHERE lookUp('pairs', 'baseName', 'id', currencyPairId) = (%(baseName)s) 
-    AND lookUp('pairs', 'quoteName', 'id', currencyPairId) = 'United States Dollar'
-    AND tsMs > cast(ago('PT1M') as long)
-    """, {"baseName": base_name})
-    df_now = pd.DataFrame(cursor, columns=[item[0] for item in cursor.description])
-
-    cursor.execute("""
-    select avg(price) AS avgPrice, max(price) as maxPrice, min(price) AS minPrice, 
-           count(*) AS count, sum(amount) AS amountTraded
-    from trades 
-    WHERE lookUp('pairs', 'baseName', 'id', currencyPairId) = (%(baseName)s) 
-    AND lookUp('pairs', 'quoteName', 'id', currencyPairId) = 'United States Dollar'
-    AND tsMs > cast(ago('PT2M') as long) 
-    AND tsMs < cast(ago('PT1M') as long)
-    """, {"baseName": base_name})
-    df_prev = pd.DataFrame(cursor, columns=[item[0] for item in cursor.description])
-    print(df_prev)
-
+    df_now = latest_period_prices(cursor, base_name)
+    df_prev = previous_period_prices(cursor, base_name)
+    
     fig = go.Figure()
     if df_now["count"][0] > 0:
         if df_prev["count"][0] > 0:
-            fig.add_trace(go.Indicator(
-                mode = "number+delta",
-                title= {'text': "Min Price"},
-                value = df_now["minPrice"][0],
-                delta = {'reference': df_prev["minPrice"][0]    , 'relative': True},
-                domain = {'row': 0, 'column': 0})
-            )
-            fig.add_trace(go.Indicator(
-                mode = "number+delta",
-                title= {'text': "Average Price"},
-                value = df_now["avgPrice"][0],
-                delta = {'reference': df_prev["avgPrice"][0], 'relative': True},
-                domain = {'row': 0, 'column': 1})
-            )
-            fig.add_trace(go.Indicator(
-                mode = "number+delta",
-                title= {'text': "Max Price"},
-                value = df_now["maxPrice"][0],
-                delta = {'reference': df_prev["maxPrice"][0], 'relative': True},
-                domain = {'row': 0, 'column': 2})
-            )
-            fig.add_trace(go.Indicator(
-                mode = "number+delta",
-                title= {'text': "Transactions"},
-                value = df_now["count"][0],
-                delta = {'reference': df_prev["count"][0], 'relative': True},
-                domain = {'row': 1, 'column': 0})
-            )
-            fig.add_trace(go.Indicator(
-                mode = "number+delta",
-                title= {'text': "Amount Traded"},
-                value = df_now["amountTraded"][0],
-                delta = {'reference': df_prev["amountTraded"][0], 'relative': True},
-                domain = {'row': 1, 'column': 1})
-            )
+            add_delta_trace(fig, "Min Price", df_now["minPrice"][0], df_prev["minPrice"][0], 0, 0)
+            add_delta_trace(fig, "Average Price", df_now["avgPrice"][0], df_prev["avgPrice"][0], 0, 1)
+            add_delta_trace(fig, "Max Price", df_now["maxPrice"][0], df_prev["maxPrice"][0], 0, 2)
+            add_delta_trace(fig, "Transactions", df_now["count"][0], df_prev["count"][0], 1, 0)
+            add_delta_trace(fig, "Amount Traded", df_now["amountTraded"][0], df_prev["amountTraded"][0], 1, 1)
         else:
-            fig.add_trace(go.Indicator(
-                mode = "number",
-                title= {'text': "Min Price"},
-                value = df_now["minPrice"][0],
-                domain = {'row': 0, 'column': 0})
-            )
-            fig.add_trace(go.Indicator(
-                mode = "number",
-                title= {'text': "Average Price"},
-                value = df_now["avgPrice"][0],
-                domain = {'row': 0, 'column': 1})
-            )
-            fig.add_trace(go.Indicator(
-                mode = "number",
-                title= {'text': "Max Price"},
-                value = df_now["maxPrice"][0],
-                domain = {'row': 0, 'column': 2})
-            )
-            fig.add_trace(go.Indicator(
-                mode = "number",
-                title= {'text': "Transactions"},
-                value = df_now["count"][0],
-                domain = {'row': 1, 'column': 0})
-            )
-            fig.add_trace(go.Indicator(
-                mode = "number",
-                title= {'text': "Amount Traded"},
-                value = df_now["amountTraded"][0],
-                domain = {'row': 1, 'column': 1})
-            )
+            add_delta_trace(fig, "Min Price", df_now["minPrice"][0], 0, 0)
+            add_delta_trace(fig, "Average Price", df_now["avgPrice"][0], 0, 1)
+            add_delta_trace(fig, "Max Price", df_now["maxPrice"][0], 0, 2)
+            add_delta_trace(fig, "Transactions", df_now["count"][0], 1, 0)
+            add_delta_trace(fig, "Amount Traded", df_now["amountTraded"][0], 1, 1)
         fig.update_layout(
             grid = {"rows": 2, "columns": 3,  'pattern': "independent"},
         )       
@@ -287,10 +260,20 @@ def bases(base_name, n):
 
 @app.callback(
     [Output(component_id='latest-trades', component_property='children'),
+     Output(component_id='pairs', component_property='children'),
+     Output(component_id='assets', component_property='children'),
      Output(component_id='latest-timestamp', component_property='children')],
     [Input('interval-component', 'n_intervals')]
 )
 def latest_trades(n):
+    style_table = {'overflowX': 'auto'}
+    style_cell = {
+        'minWidth': '180px', 'width': '180px', 'maxWidth': '180px',
+        'overflow': 'hidden',
+        'textOverflow': 'ellipsis',
+        "padding": '10px'
+    }
+
     cursor = connection.cursor()
 
     cursor.execute("""
@@ -306,15 +289,59 @@ def latest_trades(n):
     df = pd.DataFrame(cursor, columns=[item[0] for item in cursor.description])    
     df = df[["tsMs", "baseName", "quoteName", "market", "exchange", "amount", "price", "orderSide"]]
 
-    return [html.Div([dash_table.DataTable(
+    latest_trades = [html.Div([dash_table.DataTable(
         df.to_dict('records'), [{"name": i, "id": i} for i in df.columns],
-        style_table={'overflowX': 'auto'},
-        style_cell={
-            'minWidth': '180px', 'width': '180px', 'maxWidth': '180px',
-            'overflow': 'hidden',
-            'textOverflow': 'ellipsis',
-        }
-    )])], [html.Span(f"Last updated: {datetime.datetime.now()}")]
+        style_table=style_table,
+        style_cell=style_cell
+    )])]
+
+    cursor.execute("""
+    select lookUp('pairs', 'baseName', 'id', currencyPairId) AS base,
+       lookUp('pairs', 'quoteName', 'id', currencyPairId) AS quote, 
+	   count(*) AS transactions,
+	   sum(amount) AS amountTraded,
+       max(amount) as biggestTrade,
+       avg(amount) as averageTrade
+    from trades 
+    group by quote, base
+    order by transactions DESC
+    limit 10
+    """)
+
+    df = pd.DataFrame(cursor, columns=[item[0] for item in cursor.description])
+    for column in ["transactions", "amountTraded", "biggestTrade", "averageTrade"]:
+        df[column]=df[column].map('{:,.3f}'.format)
+
+    pairs = [html.Div([dash_table.DataTable(
+        df.to_dict('records'), [{"name": i, "id": i} for i in df.columns],
+        style_table=style_table,
+        style_cell=style_cell
+    )])]
+
+    cursor.execute("""
+    select lookUp('pairs', 'baseName', 'id', currencyPairId) AS baseName, 
+           min(price) AS minPrice, avg(price) AS avgPrice, max(price) as maxPrice,  
+           count(*) AS count, sum(amount) AS amountTraded		   
+    from trades 
+    WHERE lookUp('pairs', 'quoteName', 'id', currencyPairId) = 'United States Dollar'
+    --AND tsMs > cast(ago('PT2M') as long) 
+    --AND tsMs < cast(ago('PT1M') as long)
+	group by baseName
+	order by count DESC
+    """)
+
+    df = pd.DataFrame(cursor, columns=[item[0] for item in cursor.description])
+
+    for column in ["avgPrice", "minPrice", "maxPrice", "amountTraded", "count"]:
+        df[column]=df[column].map('{:,.3f}'.format)
+
+    assets = [html.Div([dash_table.DataTable(
+        df.to_dict('records'), [{"name": i, "id": i} for i in df.columns],
+        style_table=style_table,
+        style_cell=style_cell,
+    )])]
+
+    return latest_trades, pairs, assets, [html.Span(f"Last updated: {datetime.datetime.now()}")]
 
 
 @app.callback(
@@ -322,8 +349,7 @@ def latest_trades(n):
      Output(component_id='top-pairs-sell-side', component_property='figure')],
     [Input('interval-component', 'n_intervals'), Input('quotes-dropdown', 'value')]
 )
-def top_pairs_buy_side(n, value):
-    print(value)
+def top_pairs_buy_side(n, value):    
     cursor = connection.cursor()
 
     cursor.execute("""
