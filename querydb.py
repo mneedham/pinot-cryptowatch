@@ -1,6 +1,7 @@
 import pandas as pd
 
-def get_latest_trades(cursor, base_name):    
+def get_latest_trades(connection, base_name):
+    cursor = connection.cursor()
     cursor.execute("""
     select tsMs, currencyPairId, amount, price,  marketId, orderSide,
            lookUp('pairs', 'baseName', 'id', currencyPairId) AS baseName,
@@ -13,9 +14,11 @@ def get_latest_trades(cursor, base_name):
     """, {"baseName": base_name})
 
     df = pd.DataFrame(cursor, columns=[item[0] for item in cursor.description])    
+    cursor.close()
     return df[["tsMs", "quoteName", "market", "exchange", "amount", "price", "orderSide"]]
 
-def latest_period_prices(cursor, base_name):
+def latest_period_prices(connection, base_name):
+    cursor = connection.cursor()
     cursor.execute("""
     select avg(price) AS avgPrice, max(price) as maxPrice, min(price) AS minPrice, 
            count(*) AS count, sum(amount) AS amountTraded
@@ -24,10 +27,12 @@ def latest_period_prices(cursor, base_name):
     AND lookUp('pairs', 'quoteName', 'id', currencyPairId) = 'United States Dollar'
     AND tsMs > cast(ago('PT1M') as long)
     """, {"baseName": base_name})
+    df = pd.DataFrame(cursor, columns=[item[0] for item in cursor.description])
+    cursor.close()
+    return df
 
-    return pd.DataFrame(cursor, columns=[item[0] for item in cursor.description])
-
-def previous_period_prices(cursor, base_name):
+def previous_period_prices(connection, base_name):
+    cursor = connection.cursor()
     cursor.execute("""
     select avg(price) AS avgPrice, max(price) as maxPrice, min(price) AS minPrice, 
            count(*) AS count, sum(amount) AS amountTraded
@@ -37,9 +42,24 @@ def previous_period_prices(cursor, base_name):
     AND tsMs > cast(ago('PT2M') as long) 
     AND tsMs < cast(ago('PT1M') as long)
     """, {"baseName": base_name})
+    df = pd.DataFrame(cursor, columns=[item[0] for item in cursor.description])
+    cursor.close()
+    return df
+
+def all_prices(connection, base_name):
+    cursor = connection.cursor()
+    cursor.execute("""
+    select tsMs, price
+    from trades 
+    WHERE lookUp('pairs', 'baseName', 'id', currencyPairId) = (%(baseName)s) 
+    AND lookUp('pairs', 'quoteName', 'id', currencyPairId) = 'United States Dollar'
+    ORDER BY tsMs DESC
+    LIMIT 10000
+    """, {"baseName": base_name})
     return pd.DataFrame(cursor, columns=[item[0] for item in cursor.description])
 
-def get_pairs(cursor, base_name):
+def get_pairs(connection, base_name):
+    cursor = connection.cursor()
     cursor.execute("""
     select lookUp('exchanges', 'name', 'id', exchangeId) AS market, count(*) AS count
     from trades 
@@ -47,9 +67,12 @@ def get_pairs(cursor, base_name):
     group by market
 	order by count DESC
     """, {"baseName": base_name})
-    return pd.DataFrame(cursor, columns=[item[0] for item in cursor.description])
+    df = pd.DataFrame(cursor, columns=[item[0] for item in cursor.description])
+    cursor.close()
+    return df
 
-def get_assets(cursor, base_name):
+def get_assets(connection, base_name):
+    cursor = connection.cursor()
     cursor.execute("""
     select lookUp('pairs', 'quoteName', 'id', currencyPairId) AS asset, count(*) AS count
     from trades 
@@ -57,9 +80,12 @@ def get_assets(cursor, base_name):
     group by asset
 	order by count DESC
     """, {"baseName": base_name})
-    return pd.DataFrame(cursor, columns=[item[0] for item in cursor.description])
+    df = pd.DataFrame(cursor, columns=[item[0] for item in cursor.description])
+    cursor.close()
+    return df
 
-def get_order_side(cursor, base_name):
+def get_order_side(connection, base_name):
+    cursor = connection.cursor()
     cursor.execute("""
     select orderSide, count(*) AS count
     from trades 
@@ -68,7 +94,9 @@ def get_order_side(cursor, base_name):
     group by orderSide
 	order by count DESC
     """, {"baseName": base_name})
-    return pd.DataFrame(cursor, columns=[item[0] for item in cursor.description])
+    df = pd.DataFrame(cursor, columns=[item[0] for item in cursor.description])
+    cursor.close()
+    return df
 
 def get_all_latest_trades(cursor):
     cursor.execute("""
@@ -148,7 +176,8 @@ def get_top_pairs_sell_side(cursor, quote_name):
     """, {"quoteName": quote_name})
     return pd.DataFrame(cursor, columns=[item[0] for item in cursor.description])
 
-def quotes(cursor):
+def quotes(connection):
+    cursor = connection.cursor()
     cursor.execute("""
     select count(*) AS count,
        lookUp('pairs', 'quoteName', 'id', currencyPairId) AS quoteName
@@ -159,10 +188,12 @@ def quotes(cursor):
     limit 20
     """)
     df = pd.DataFrame(cursor, columns=[item[0] for item in cursor.description]) 
+    cursor.close()
 
     return df["quoteName"].values
 
-def bases(cursor):
+def bases(connection):
+    cursor = connection.cursor()
     cursor.execute("""
     select count(*) AS count,
        lookUp('pairs', 'baseName', 'id', currencyPairId) AS baseName
@@ -172,6 +203,8 @@ def bases(cursor):
     order by count desc
     limit 20
     """)
+    
     df = pd.DataFrame(cursor, columns=[item[0] for item in cursor.description]) 
+    cursor.close()
 
     return df["baseName"].values

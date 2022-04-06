@@ -20,12 +20,21 @@ connection = connect(
     scheme=( "http"),
 )
 cursor = connection.cursor()
-all_quotes = querydb.quotes(cursor)
-all_bases = querydb.bases(cursor)
+all_quotes = querydb.quotes(connection)
+all_bases = querydb.bases(connection)
 
 app.layout = html.Div([
     html.H1("Crypto Watch Dashboard", style={'text-align': 'center'}),
-    html.Div(id='latest-timestamp'),
+    # html.Div(children=[
+    #     html.Div(children=[
+    #         html.Span("Refresh rate (seconds)", style={"font-weight": "bold"})
+    #     ], className="two columns"),
+    #     html.Div(children=[
+    #         dcc.Slider(min=1, max=10, step=1, value=1, id='interval-refresh'),
+    #     ], className="three columns"),
+    #     html.Div(id='latest-timestamp', className="three columns"),    
+    # ], className="one row"),
+    html.Div(id='latest-timestamp'),  
     dcc.Interval(
             id='interval-component',
             interval=1 * 1000,  # in milliseconds
@@ -40,21 +49,25 @@ app.layout = html.Div([
 ])
 
 @app.callback(
+    [Output(component_id='interval-component', component_property='interval')],
+    [Input('interval-refresh', 'value')])
+def update_refresh_rate(value):
+    return [value * 1000]
+
+@app.callback(
     [Output(component_id='latest-trades-bases', component_property='children'),
      Output(component_id='prices', component_property='figure'),
      Output(component_id='markets', component_property='figure'),
      Output(component_id='assets', component_property='figure'),
-     Output(component_id='order_side', component_property='figure')
+     Output(component_id='order_side', component_property='figure'),
      ],
     [Input('bases-dropdown', 'value'), Input('interval-component', 'n_intervals')]
 )
 def bases(base_name, n):
-    cursor = connection.cursor()
+    latest_trades = dash_utils.as_datatable(querydb.get_latest_trades(connection, base_name))
 
-    latest_trades = dash_utils.as_datatable(querydb.get_latest_trades(cursor, base_name))
-
-    df_now = querydb.latest_period_prices(cursor, base_name)
-    df_prev = querydb.previous_period_prices(cursor, base_name)
+    df_now = querydb.latest_period_prices(connection, base_name)
+    df_prev = querydb.previous_period_prices(connection, base_name)
     
     fig = go.Figure()
     if df_now["count"][0] > 0:
@@ -78,9 +91,10 @@ def bases(base_name, n):
             annotations = [{"text": "No transactions found", "xref": "paper", "yref": "paper", "showarrow": False, "font": {"size": 28}}]
         )
 
-    fig_market = px.bar(querydb.get_pairs(cursor, base_name), x='market', y='count', title="Top markets")
-    fig_asset = px.bar(querydb.get_assets(cursor, base_name), x='asset', y='count', title="Top assets")
-    fig_order_side = px.bar(querydb.get_order_side(cursor, base_name), x='orderSide', y='count', title="Order Side")
+    # fig_prices = px.line(querydb.all_prices(connection, base_name), x="tsMs", y="price", title='Price over time')
+    fig_market = px.bar(querydb.get_pairs(connection, base_name), x='market', y='count', title="Top markets")
+    fig_asset = px.bar(querydb.get_assets(connection, base_name), x='asset', y='count', title="Top assets")
+    fig_order_side = px.bar(querydb.get_order_side(connection, base_name), x='orderSide', y='count', title="Order Side")
 
     return latest_trades, fig, fig_market, fig_asset, fig_order_side
 
@@ -91,7 +105,6 @@ def bases(base_name, n):
     [Input('interval-component', 'n_intervals')]
 )
 def overview(n):
-    cursor = connection.cursor()
     pairs = dash_utils.as_datatable(querydb.get_all_pairs(cursor))
     assets = dash_utils.as_datatable(querydb.get_all_assets(cursor))
 
@@ -103,10 +116,7 @@ def overview(n):
     [Input('interval-component', 'n_intervals')]
 )
 def latest_trades(n):
-    cursor = connection.cursor()
-
     latest_trades = dash_utils.as_datatable(querydb.get_all_latest_trades(cursor))
-
     return latest_trades
 
 @app.callback(
@@ -115,8 +125,6 @@ def latest_trades(n):
     [Input('interval-component', 'n_intervals'), Input('quotes-dropdown', 'value')]
 )
 def top_pairs_buy_side(n, value):    
-    cursor = connection.cursor()
-
     df_buy_side = querydb.get_top_pairs_buy_side(cursor, value)
     fig_buy = px.bar(df_buy_side, x='baseName', y='totalAmount', log_y=True)
 
