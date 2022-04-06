@@ -1,6 +1,7 @@
 import cryptowatch as cw
 import json
 import datetime
+import os
 
 from google.protobuf.json_format import MessageToJson
 from confluent_kafka import Producer
@@ -18,7 +19,7 @@ def json_serializer(obj):
 producer = Producer({'bootstrap.servers': 'localhost:9092'})
 
 # Set your API Key
-cw.api_key = "Z206O9K2DGR4BKNRQGMP"
+cw.api_key = os.environ.get("KEY")
 
 # Subscribe to resources (https://docs.cryptowat.ch/websocket-api/data-subscriptions#resources)
 cw.stream.subscriptions = ["markets:*:trades"]
