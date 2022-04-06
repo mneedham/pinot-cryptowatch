@@ -146,3 +146,31 @@ def get_top_pairs_sell_side(cursor, quote_name):
     order by totalAmount DESC
     """, {"quoteName": quote_name})
     return pd.DataFrame(cursor, columns=[item[0] for item in cursor.description])
+
+def quotes(cursor):
+    cursor.execute("""
+    select count(*) AS count,
+       lookUp('pairs', 'quoteName', 'id', currencyPairId) AS quoteName
+    from trades 
+    where quoteName != 'null'
+    group by quoteName
+    order by count desc
+    limit 20
+    """)
+    df = pd.DataFrame(cursor, columns=[item[0] for item in cursor.description]) 
+
+    return df["quoteName"].values
+
+def bases(cursor):
+    cursor.execute("""
+    select count(*) AS count,
+       lookUp('pairs', 'baseName', 'id', currencyPairId) AS baseName
+    from trades 
+    where baseName != 'null'
+    group by baseName
+    order by count desc
+    limit 20
+    """)
+    df = pd.DataFrame(cursor, columns=[item[0] for item in cursor.description]) 
+
+    return df["baseName"].values
