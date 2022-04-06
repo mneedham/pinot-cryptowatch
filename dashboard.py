@@ -12,15 +12,6 @@ external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
 app = Dash(__name__, external_stylesheets=external_stylesheets)
 app.title = "Crypto Watch Dashboard"
 app.config.suppress_callback_exceptions=True
-app.layout = html.Div([
-    html.H1("Crypto Watch Dashboard", style={'text-align': 'center'}),
-    html.Div(id='latest-timestamp'),
-        dcc.Tabs(id="tabs-example-graph", value='overview', children=[
-        dcc.Tab(label='Overview', value='overview'),
-        dcc.Tab(label='By asset', value='by-asset'),
-    ]),
-    html.Div(id='tabs-content-example-graph')
-])
 
 connection = connect(
     host="localhost",
@@ -28,18 +19,35 @@ connection = connect(
     path="/query/sql",
     scheme=( "http"),
 )
-
 cursor = connection.cursor()
 all_quotes = querydb.quotes(cursor)
 all_bases = querydb.bases(cursor)
 
-@app.callback(Output('tabs-content-example-graph', 'children'),
-              Input('tabs-example-graph', 'value'))
-def render_content(tab):
-    if tab == 'overview':
-        return tabs.overview(all_quotes)
-    if tab == 'by-asset':
-        return tabs.assets(all_bases)
+app.layout = html.Div([
+    html.H1("Crypto Watch Dashboard", style={'text-align': 'center'}),
+    html.Div(id='latest-timestamp'),
+    dcc.Interval(
+            id='interval-component',
+            interval=1 * 1000,  # in milliseconds
+            n_intervals=0
+        ),
+    dcc.Tabs(id="tabs-example-graph", value='overview', children=[
+        dcc.Tab(label='Overview', value='overview', children=[tabs.overview(all_quotes)]),
+        dcc.Tab(label='By asset', value='by-asset', children=[tabs.assets(all_bases)]),
+    ]),
+    html.Div(id='tabs-content-example-graph')
+])
+
+
+
+
+# @app.callback(Output('tabs-content-example-graph', 'children'),
+#               Input('tabs-example-graph', 'value'))
+# def render_content(tab):
+#     if tab == 'overview':
+#         return tabs.overview(all_quotes)
+#     if tab == 'by-asset':
+#         return tabs.assets(all_bases)
 
 @app.callback(
     [Output(component_id='latest-trades-bases', component_property='children'),
@@ -48,7 +56,7 @@ def render_content(tab):
      Output(component_id='assets', component_property='figure'),
      Output(component_id='order_side', component_property='figure')
      ],
-    [Input('bases-dropdown', 'value'), Input('interval-component-by-asset', 'n_intervals')]
+    [Input('bases-dropdown', 'value'), Input('interval-component', 'n_intervals')]
 )
 def bases(base_name, n):
     style_table = {'overflowX': 'auto'}
@@ -96,7 +104,7 @@ def bases(base_name, n):
 @app.callback(
     [Output(component_id='latest-trades', component_property='children'),
      Output(component_id='pairs', component_property='children'),
-     Output(component_id='assets', component_property='children'),
+     Output(component_id='overview-assets', component_property='children'),
      Output(component_id='latest-timestamp', component_property='children')],
     [Input('interval-component', 'n_intervals')]
 )
