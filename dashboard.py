@@ -38,17 +38,6 @@ app.layout = html.Div([
     html.Div(id='tabs-content-example-graph')
 ])
 
-
-
-
-# @app.callback(Output('tabs-content-example-graph', 'children'),
-#               Input('tabs-example-graph', 'value'))
-# def render_content(tab):
-#     if tab == 'overview':
-#         return tabs.overview(all_quotes)
-#     if tab == 'by-asset':
-#         return tabs.assets(all_bases)
-
 @app.callback(
     [Output(component_id='latest-trades-bases', component_property='children'),
      Output(component_id='prices', component_property='figure'),
