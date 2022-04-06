@@ -2,20 +2,6 @@
 
 https://docs.cryptowat.ch/websocket-api/data-subscriptions/trades
 
-[source,bash]
-----
-docker run \
-  -v ${PWD}/trades.json:/tmp/trades.json \
-  -v ${PWD}/output:/output \
-  apachepinot/pinot:0.9.3 JsonToPinotSchema \
-  -jsonFile /tmp/trades.json \
-  -pinotSchemaName="trades" \
-  -outputDir="/output" \
-  -metrics "marketUpdate.tradesUpdate.trades.priceStr,marketUpdate.tradesUpdate.trades.amountStr" \
-  -timeColumnName marketUpdate.tradesUpdate.trades.timestampNano \
-  -fieldsToUnnest=marketUpdate.tradesUpdate.trades,marketUpdate.market
-----
-
 ## trades table
 
 [source,bash]
@@ -101,3 +87,19 @@ docker exec -i kafka-crypto /opt/kafka/bin/kafka-console-consumer.sh \
 * Drill down to see what's happening in e.g. Bitcoin
 * What's happening right now vs historical analysis
 * Biggest gainers (in terms of coins/prices)
+
+## Generate schema outline
+
+[source,bash]
+----
+docker run \
+  -v ${PWD}/trades.json:/tmp/trades.json \
+  -v ${PWD}/output:/output \
+  apachepinot/pinot:0.9.3 JsonToPinotSchema \
+  -jsonFile /tmp/trades.json \
+  -pinotSchemaName="trades" \
+  -outputDir="/output" \
+  -metrics "marketUpdate.tradesUpdate.trades.priceStr,marketUpdate.tradesUpdate.trades.amountStr" \
+  -timeColumnName marketUpdate.tradesUpdate.trades.timestampNano \
+  -fieldsToUnnest=marketUpdate.tradesUpdate.trades,marketUpdate.market
+----
