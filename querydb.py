@@ -79,6 +79,7 @@ def get_all_latest_trades(cursor):
            lookUp('exchanges', 'name', 'id', exchangeId) AS exchange
     from trades 
     order by tsMs DESC
+    LIMIT 50
     """)
 
     df = pd.DataFrame(cursor, columns=[item[0] for item in cursor.description])    

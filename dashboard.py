@@ -33,7 +33,8 @@ app.layout = html.Div([
         ),
     dcc.Tabs(id="tabs-example-graph", value='overview', children=[
         dcc.Tab(label='Overview', value='overview', children=[tabs.overview(all_quotes)]),
-        dcc.Tab(label='By asset', value='by-asset', children=[tabs.assets(all_bases)]),
+        dcc.Tab(label='Assets', value='by-asset', children=[tabs.assets(all_bases)]),
+        dcc.Tab(label='Latest Trades', value='all-latest-trades', children=[tabs.latest_trades()]),
     ]),
     html.Div(id='tabs-content-example-graph')
 ])
@@ -48,13 +49,6 @@ app.layout = html.Div([
     [Input('bases-dropdown', 'value'), Input('interval-component', 'n_intervals')]
 )
 def bases(base_name, n):
-    style_table = {'overflowX': 'auto'}
-    style_cell = {
-        'minWidth': '180px', 'width': '180px', 'maxWidth': '180px',
-        'overflow': 'hidden',
-        'textOverflow': 'ellipsis',
-    }
-
     cursor = connection.cursor()
 
     latest_trades = dash_utils.as_datatable(querydb.get_latest_trades(cursor, base_name))
@@ -91,21 +85,29 @@ def bases(base_name, n):
     return latest_trades, fig, fig_market, fig_asset, fig_order_side
 
 @app.callback(
-    [Output(component_id='latest-trades', component_property='children'),
-     Output(component_id='pairs', component_property='children'),
+    [Output(component_id='pairs', component_property='children'),
      Output(component_id='overview-assets', component_property='children'),
      Output(component_id='latest-timestamp', component_property='children')],
+    [Input('interval-component', 'n_intervals')]
+)
+def overview(n):
+    cursor = connection.cursor()
+    pairs = dash_utils.as_datatable(querydb.get_all_pairs(cursor))
+    assets = dash_utils.as_datatable(querydb.get_all_assets(cursor))
+
+    return pairs, assets, [html.Span(f"Last updated: {datetime.datetime.now()}")]
+
+
+@app.callback(
+    [Output(component_id='latest-trades', component_property='children')],
     [Input('interval-component', 'n_intervals')]
 )
 def latest_trades(n):
     cursor = connection.cursor()
 
     latest_trades = dash_utils.as_datatable(querydb.get_all_latest_trades(cursor))
-    pairs = dash_utils.as_datatable(querydb.get_all_pairs(cursor))
-    assets = dash_utils.as_datatable(querydb.get_all_assets(cursor))
 
-    return latest_trades, pairs, assets, [html.Span(f"Last updated: {datetime.datetime.now()}")]
-
+    return latest_trades
 
 @app.callback(
     [Output(component_id='top-pairs-buy-side', component_property='figure'),
