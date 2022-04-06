@@ -1,4 +1,4 @@
-= Cryptowatch on Pinot
+# Cryptowatch on Pinot
 
 https://docs.cryptowat.ch/websocket-api/data-subscriptions/trades
 
@@ -16,7 +16,7 @@ docker run \
   -fieldsToUnnest=marketUpdate.tradesUpdate.trades,marketUpdate.market
 ----
 
-trades table:
+## trades table
 
 [source,bash]
 ----
@@ -26,7 +26,7 @@ docker exec -it pinot-controller-crypto bin/pinot-admin.sh AddTable   \
   -exec
 ----
 
-markets table:
+## markets table
 
 [source,bash]
 ----
@@ -42,7 +42,7 @@ docker exec -it pinot-controller-crypto bin/pinot-admin.sh LaunchDataIngestionJo
   -jobSpecFile /config/markets-job-spec.yml
 ----
 
-exchanges table:
+## exchanges table
 
 [source,bash]
 ----
@@ -58,7 +58,7 @@ docker exec -it pinot-controller-crypto bin/pinot-admin.sh LaunchDataIngestionJo
   -jobSpecFile /config/exchanges-job-spec.yml
 ----
 
-pairs table:
+## pairs table
 
 [source,bash]
 ----
