@@ -5,6 +5,7 @@ from dash import Dash, dcc, html, Input, Output, dash_table  # pip install dash 
 from pinotdb import connect, db
 import datetime
 import math
+import querydb
 
 connection = connect(
             host="localhost",
@@ -115,47 +116,6 @@ def render_content(tab):
         ) 
         ])
 
-
-def get_latest_trades(cursor, base_name):    
-    cursor.execute("""
-    select tsMs, currencyPairId, amount, price,  marketId, orderSide,
-           lookUp('pairs', 'baseName', 'id', currencyPairId) AS baseName,
-           lookUp('pairs', 'quoteName', 'id', currencyPairId) AS quoteName,
-           lookUp('markets', 'exchange', 'id', marketId) AS market,
-           lookUp('exchanges', 'name', 'id', exchangeId) AS exchange
-    from trades 
-    where baseName = (%(baseName)s) 
-    order by tsMs DESC
-    """, {"baseName": base_name})
-
-    df = pd.DataFrame(cursor, columns=[item[0] for item in cursor.description])    
-    return df[["tsMs", "quoteName", "market", "exchange", "amount", "price", "orderSide"]]
-
-def latest_period_prices(cursor, base_name):
-    cursor.execute("""
-    select avg(price) AS avgPrice, max(price) as maxPrice, min(price) AS minPrice, 
-           count(*) AS count, sum(amount) AS amountTraded
-    from trades 
-    WHERE lookUp('pairs', 'baseName', 'id', currencyPairId) = (%(baseName)s) 
-    AND lookUp('pairs', 'quoteName', 'id', currencyPairId) = 'United States Dollar'
-    AND tsMs > cast(ago('PT1M') as long)
-    """, {"baseName": base_name})
-
-    return pd.DataFrame(cursor, columns=[item[0] for item in cursor.description])
-
-def previous_period_prices(cursor, base_name):
-    cursor.execute("""
-    select avg(price) AS avgPrice, max(price) as maxPrice, min(price) AS minPrice, 
-           count(*) AS count, sum(amount) AS amountTraded
-    from trades 
-    WHERE lookUp('pairs', 'baseName', 'id', currencyPairId) = (%(baseName)s) 
-    AND lookUp('pairs', 'quoteName', 'id', currencyPairId) = 'United States Dollar'
-    AND tsMs > cast(ago('PT2M') as long) 
-    AND tsMs < cast(ago('PT1M') as long)
-    """, {"baseName": base_name})
-
-    return pd.DataFrame(cursor, columns=[item[0] for item in cursor.description])
-
 def add_delta_trace(fig, title, value, last_value, row, column):
     fig.add_trace(go.Indicator(
         mode = "number+delta",
@@ -192,15 +152,15 @@ def bases(base_name, n):
 
     cursor = connection.cursor()
 
-    df = get_latest_trades(cursor, base_name)
+    df = querydb.get_latest_trades(cursor, base_name)
     latest_trades = [html.Div([dash_table.DataTable(
         df.to_dict('records'), [{"name": i, "id": i} for i in df.columns],
         style_table=style_table,
         style_cell=style_cell
     )])]
 
-    df_now = latest_period_prices(cursor, base_name)
-    df_prev = previous_period_prices(cursor, base_name)
+    df_now = querydb.latest_period_prices(cursor, base_name)
+    df_prev = querydb.previous_period_prices(cursor, base_name)
     
     fig = go.Figure()
     if df_now["count"][0] > 0:
@@ -211,11 +171,11 @@ def bases(base_name, n):
             add_delta_trace(fig, "Transactions", df_now["count"][0], df_prev["count"][0], 1, 0)
             add_delta_trace(fig, "Amount Traded", df_now["amountTraded"][0], df_prev["amountTraded"][0], 1, 1)
         else:
-            add_delta_trace(fig, "Min Price", df_now["minPrice"][0], 0, 0)
-            add_delta_trace(fig, "Average Price", df_now["avgPrice"][0], 0, 1)
-            add_delta_trace(fig, "Max Price", df_now["maxPrice"][0], 0, 2)
-            add_delta_trace(fig, "Transactions", df_now["count"][0], 1, 0)
-            add_delta_trace(fig, "Amount Traded", df_now["amountTraded"][0], 1, 1)
+            add_trace(fig, "Min Price", df_now["minPrice"][0], 0, 0)
+            add_trace(fig, "Average Price", df_now["avgPrice"][0], 0, 1)
+            add_trace(fig, "Max Price", df_now["maxPrice"][0], 0, 2)
+            add_trace(fig, "Transactions", df_now["count"][0], 1, 0)
+            add_trace(fig, "Amount Traded", df_now["amountTraded"][0], 1, 1)
         fig.update_layout(
             grid = {"rows": 2, "columns": 3,  'pattern': "independent"},
         )       
@@ -224,37 +184,9 @@ def bases(base_name, n):
             annotations = [{"text": "No transactions found", "xref": "paper", "yref": "paper", "showarrow": False, "font": {"size": 28}}]
         )
 
-    cursor.execute("""
-    select lookUp('exchanges', 'name', 'id', exchangeId) AS market, count(*) AS count
-    from trades 
-    WHERE lookUp('pairs', 'baseName', 'id', currencyPairId) = (%(baseName)s) 
-    group by market
-	order by count DESC
-    """, {"baseName": base_name})
-    df = pd.DataFrame(cursor, columns=[item[0] for item in cursor.description])
-    fig_market = px.bar(df, x='market', y='count', title="Top markets")
-
-    cursor.execute("""
-    select lookUp('pairs', 'quoteName', 'id', currencyPairId) AS asset, count(*) AS count
-    from trades 
-    WHERE lookUp('pairs', 'baseName', 'id', currencyPairId) = (%(baseName)s) 
-    group by asset
-	order by count DESC
-    """, {"baseName": base_name})
-    df = pd.DataFrame(cursor, columns=[item[0] for item in cursor.description])
-    fig_asset = px.bar(df, x='asset', y='count', title="Top assets")
-
-    cursor.execute("""
-    select orderSide, count(*) AS count
-    from trades 
-    WHERE lookUp('pairs', 'baseName', 'id', currencyPairId) = (%(baseName)s) 
-    AND orderSide != 'null'
-    group by orderSide
-	order by count DESC
-    """, {"baseName": base_name})
-    df = pd.DataFrame(cursor, columns=[item[0] for item in cursor.description])
-    fig_order_side = px.bar(df, x='orderSide', y='count', title="Order Side")
-
+    fig_market = px.bar(querydb.get_pairs(cursor, base_name), x='market', y='count', title="Top markets")
+    fig_asset = px.bar(querydb.get_assets(cursor, base_name), x='asset', y='count', title="Top assets")
+    fig_order_side = px.bar(querydb.get_order_side(cursor, base_name), x='orderSide', y='count', title="Order Side")
 
     return latest_trades, fig, fig_market, fig_asset, fig_order_side
 
@@ -276,65 +208,21 @@ def latest_trades(n):
 
     cursor = connection.cursor()
 
-    cursor.execute("""
-    select tsMs, currencyPairId, amount, price,  marketId, orderSide,
-           lookUp('pairs', 'baseName', 'id', currencyPairId) AS baseName,
-           lookUp('pairs', 'quoteName', 'id', currencyPairId) AS quoteName,
-           lookUp('markets', 'exchange', 'id', marketId) AS market,
-           lookUp('exchanges', 'name', 'id', exchangeId) AS exchange
-    from trades 
-    order by tsMs DESC
-    """)
-
-    df = pd.DataFrame(cursor, columns=[item[0] for item in cursor.description])    
-    df = df[["tsMs", "baseName", "quoteName", "market", "exchange", "amount", "price", "orderSide"]]
-
+    df = querydb.get_all_latest_trades(cursor)
     latest_trades = [html.Div([dash_table.DataTable(
         df.to_dict('records'), [{"name": i, "id": i} for i in df.columns],
         style_table=style_table,
         style_cell=style_cell
     )])]
 
-    cursor.execute("""
-    select lookUp('pairs', 'baseName', 'id', currencyPairId) AS base,
-       lookUp('pairs', 'quoteName', 'id', currencyPairId) AS quote, 
-	   count(*) AS transactions,
-	   sum(amount) AS amountTraded,
-       max(amount) as biggestTrade,
-       avg(amount) as averageTrade
-    from trades 
-    group by quote, base
-    order by transactions DESC
-    limit 10
-    """)
-
-    df = pd.DataFrame(cursor, columns=[item[0] for item in cursor.description])
-    for column in ["transactions", "amountTraded", "biggestTrade", "averageTrade"]:
-        df[column]=df[column].map('{:,.3f}'.format)
-
+    df = querydb.get_all_pairs(cursor)
     pairs = [html.Div([dash_table.DataTable(
         df.to_dict('records'), [{"name": i, "id": i} for i in df.columns],
         style_table=style_table,
         style_cell=style_cell
     )])]
 
-    cursor.execute("""
-    select lookUp('pairs', 'baseName', 'id', currencyPairId) AS baseName, 
-           min(price) AS minPrice, avg(price) AS avgPrice, max(price) as maxPrice,  
-           count(*) AS count, sum(amount) AS amountTraded		   
-    from trades 
-    WHERE lookUp('pairs', 'quoteName', 'id', currencyPairId) = 'United States Dollar'
-    --AND tsMs > cast(ago('PT2M') as long) 
-    --AND tsMs < cast(ago('PT1M') as long)
-	group by baseName
-	order by count DESC
-    """)
-
-    df = pd.DataFrame(cursor, columns=[item[0] for item in cursor.description])
-
-    for column in ["avgPrice", "minPrice", "maxPrice", "amountTraded", "count"]:
-        df[column]=df[column].map('{:,.3f}'.format)
-
+    df = querydb.get_all_assets(cursor)
     assets = [html.Div([dash_table.DataTable(
         df.to_dict('records'), [{"name": i, "id": i} for i in df.columns],
         style_table=style_table,
@@ -352,28 +240,10 @@ def latest_trades(n):
 def top_pairs_buy_side(n, value):    
     cursor = connection.cursor()
 
-    cursor.execute("""
-    select sum(amount*price) AS totalAmount,
-           lookUp('pairs', 'baseName', 'id', currencyPairId) AS baseName,
-           lookUp('pairs', 'quoteName', 'id', currencyPairId) AS quoteName
-    from trades 
-    where quoteName = (%(quoteName)s) AND orderSide = 'BUYSIDE'
-    group by baseName, quoteName
-    order by totalAmount DESC
-    """, {"quoteName": value})
-    df_buy_side = pd.DataFrame(cursor, columns=[item[0] for item in cursor.description])
+    df_buy_side = querydb.get_top_pairs_buy_side(cursor, value)
     fig_buy = px.bar(df_buy_side, x='baseName', y='totalAmount', log_y=True)
 
-    cursor.execute("""
-    select sum(amount*price) AS totalAmount,
-           lookUp('pairs', 'baseName', 'id', currencyPairId) AS baseName,
-           lookUp('pairs', 'quoteName', 'id', currencyPairId) AS quoteName
-    from trades 
-    where quoteName = (%(quoteName)s) AND orderSide = 'SELLSIDE'
-    group by baseName, quoteName
-    order by totalAmount DESC
-    """, {"quoteName": value})
-    df_sell_side = pd.DataFrame(cursor, columns=[item[0] for item in cursor.description])
+    df_sell_side = querydb.get_top_pairs_sell_side(cursor, value)
     fig_sell = px.bar(df_sell_side, x='baseName', y='totalAmount', log_y=True)
 
     return [fig_buy, fig_sell]
