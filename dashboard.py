@@ -25,29 +25,32 @@ all_bases = querydb.bases(connection)
 
 app.layout = html.Div([
     html.H1("Crypto Watch Dashboard", style={'text-align': 'center'}),
-    # html.Div(children=[
-    #     html.Div(children=[
-    #         html.Span("Refresh rate (seconds)", style={"font-weight": "bold"})
-    #     ], className="two columns"),
-    #     html.Div(children=[
-    #         dcc.Slider(min=1, max=10, step=1, value=1, id='interval-refresh'),
-    #     ], className="three columns"),
-    #     html.Div(id='latest-timestamp', className="three columns"),    
-    # ], className="one row"),
+    html.Div(children=[
+        html.Div(children=[
+            html.Div(children=[
+                html.Span("Refresh rate (seconds)", style={"font-weight": "bold"})
+            ], className="two columns"),
+            html.Div(children=[
+                dcc.Slider(min=1, max=10, step=1, value=1, id='interval-refresh'),
+            ], className="three columns"),
+            html.Div(children=[
+                html.Span("Data Recency", style={"font-weight": "bold"})
+            ], className="two columns"),
+            html.Div(children=[
+                dcc.Dropdown(id='data-recency', options=[
+                {'label': 'Last 1 minute', 'value': 'PT1M'},
+                {'label': 'Last 2 minutes', 'value': 'PT2M'},
+                {'label': 'Last 5 minutes', 'value': 'PT5M'},
+                {'label': 'Last 10 minutes', 'value': 'PT10M'},
+                {'label': 'Last 30 minutes', 'value': 'PT30M'},
+            ],
+            value='PT1M'),
+            ], className="three columns"),        
+        ], className="one row", style={"padding": "5px 0"}),
+        html.Div(id='latest-timestamp', style={"padding": "5px 0"}),
+    ], className="one row", style={"backgroundColor": "#EFEFEF", "padding": "10px", "margin": "10px 0", "borderRadius": "10px"}),
 
-    html.Label(children=[
-        html.Span("Data Recency:", style={"font-weight": "bold"}),
-        dcc.Dropdown(id='data-recency', options=[
-            {'label': 'Last 1 minute', 'value': 'PT1M'},
-            {'label': 'Last 2 minutes', 'value': 'PT2M'},
-            {'label': 'Last 5 minutes', 'value': 'PT5M'},
-            {'label': 'Last 10 minutes', 'value': 'PT10M'},
-            {'label': 'Last 30 minutes', 'value': 'PT30M'},
-        ],
-        value='PT1M'
-    ),
-    ]), 
-    html.Div(id='latest-timestamp'),  
+    # html.Div(id='latest-timestamp'),  
     dcc.Interval(
             id='interval-component',
             interval=1 * 1000,  # in milliseconds
@@ -61,11 +64,11 @@ app.layout = html.Div([
     html.Div(id='tabs-content-example-graph')
 ])
 
-# @app.callback(
-#     [Output(component_id='interval-component', component_property='interval')],
-#     [Input('interval-refresh', 'value')])
-# def update_refresh_rate(value):
-#     return [value * 1000]
+@app.callback(
+    [Output(component_id='interval-component', component_property='interval')],
+    [Input('interval-refresh', 'value')])
+def update_refresh_rate(value):
+    return [value * 1000]
 
 # @app.callback(
 #     [Output(component_id='latest-trades-bases', component_property='children'),
@@ -119,10 +122,10 @@ app.layout = html.Div([
 )
 def overview(n, interval):
     cursor = connection.cursor()
-    pairs = dash_utils.as_datatable(querydb.get_all_pairs(cursor, interval))
-    assets = dash_utils.as_datatable(querydb.get_all_assets(cursor, interval))
-
+    pairs = dash_utils.as_data_table_or_message(querydb.get_all_pairs(cursor, interval), "No recent trades")
+    assets = dash_utils.as_data_table_or_message(querydb.get_all_assets(cursor, interval), "No recent trades")
     cursor.close()
+
     return pairs, assets, [html.Span(f"Last updated: {datetime.datetime.now()}")]
 
 
@@ -135,8 +138,8 @@ def latest_trades(n):
     return latest_trades
 
 @app.callback(
-    [Output(component_id='top-pairs-buy-side', component_property='figure'),
-     Output(component_id='top-pairs-sell-side', component_property='figure')],
+    [Output(component_id='top-pairs-buy-side', component_property='children'),
+     Output(component_id='top-pairs-sell-side', component_property='children')],
     [Input('interval-component', 'n_intervals'), Input('quotes-dropdown', 'value'),  Input('data-recency', 'value')]
 )
 def top_pairs_buy_side(n, value, interval):    
@@ -146,7 +149,10 @@ def top_pairs_buy_side(n, value, interval):
     df_sell_side = querydb.get_top_pairs_sell_side(cursor, value, interval)
     fig_sell = px.bar(df_sell_side, x='baseName', y='totalAmount', log_y=True)
 
-    return [fig_buy, fig_sell]
+    buy = dcc.Graph(figure=fig_buy) if df_buy_side.shape[0] > 0 else "No recent trades"
+    sell = dcc.Graph(figure=fig_sell) if df_sell_side.shape[0] > 0 else "No recent trades"
+
+    return buy, sell
 
 if __name__ == '__main__':
     app.run_server(debug=True)

@@ -9,15 +9,25 @@ def overview(all_quotes):
             html.Div(id='overview-assets'),
         ]),
         html.Div([
-            html.H2('Most Traded Coins'),
+            html.H2('Most Traded Assets'),
             html.Label(children=[
                 html.Span("Quote currency:", style={"font-weight": "bold"}),
                 dcc.Dropdown(all_quotes, all_quotes[0], id='quotes-dropdown'),
-            ]),        
-            html.H3("Buy Side"),
-            dcc.Graph(id='top-pairs-buy-side', figure={}),
-            html.H3 ("Sell Side"),
-            dcc.Graph(id='top-pairs-sell-side', figure={})
+            ]),
+            html.Div([
+                html.Div([
+                    html.H3("Buy Side"),
+                    html.Div(id="top-pairs-buy-side"),
+                    # dcc.Graph(id='top-pairs-buy-side', figure={}),
+                ], className="six columns"),
+                html.Div([
+                    html.H3("Sell Side"),
+                    html.Div(id="top-pairs-sell-side"),
+                    # dcc.Graph(id='top-pairs-sell-side', figure={}),
+                ], className="six columns"),
+            
+            ], className="one row"),
+            
         ]),         
     ])    
 

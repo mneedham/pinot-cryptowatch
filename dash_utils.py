@@ -1,6 +1,9 @@
 from dash import html, dash_table
 import plotly.graph_objects as go
 
+def as_data_table_or_message(df, message):
+    return as_datatable(df) if df.shape[0] > 0 else message
+
 def as_datatable(df):
     style_table = {'overflowX': 'auto'}
     style_cell = {
