@@ -3,6 +3,7 @@ from dash import Dash, dcc, html
 def overview(all_quotes):
     return html.Div([
         html.Div([
+            html.Div(id='aggregate-trades'),
             html.H2('Pairs'),
             html.Div(id='pairs'),
             html.H2('Assets'),

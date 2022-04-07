@@ -38,13 +38,13 @@ app.layout = html.Div([
             ], className="two columns"),
             html.Div(children=[
                 dcc.Dropdown(id='data-recency', options=[
-                {'label': 'Last 1 minute', 'value': 'PT1M'},
-                {'label': 'Last 2 minutes', 'value': 'PT2M'},
-                {'label': 'Last 5 minutes', 'value': 'PT5M'},
-                {'label': 'Last 10 minutes', 'value': 'PT10M'},
-                {'label': 'Last 30 minutes', 'value': 'PT30M'},
+                {'label': 'Last 1 minute', 'value': 1},
+                {'label': 'Last 2 minutes', 'value': 2},
+                {'label': 'Last 5 minutes', 'value': 5},
+                {'label': 'Last 10 minutes', 'value':10},
+                {'label': 'Last 30 minutes', 'value': 30},
             ],
-            value='PT1M'),
+            value=1),
             ], className="three columns"),        
         ], className="one row", style={"padding": "5px 0"}),
         html.Div(id='latest-timestamp', style={"padding": "5px 0"}),
@@ -116,16 +116,35 @@ def update_refresh_rate(value):
 @app.callback(
     [Output(component_id='pairs', component_property='children'),
     Output(component_id='overview-assets', component_property='children'),
-     Output(component_id='latest-timestamp', component_property='children')],
+     Output(component_id='latest-timestamp', component_property='children'),
+     Output(component_id='aggregate-trades', component_property='children')
+     ],
     [Input('interval-component', 'n_intervals'), Input('data-recency', 'value')]
 )
 def overview(n, interval):
     cursor = connection.cursor()
     pairs = dash_utils.as_data_table_or_message(querydb.get_all_pairs(cursor, interval), "No recent trades")
     assets = dash_utils.as_data_table_or_message(querydb.get_all_assets(cursor, interval), "No recent trades")
+
+    aggregate_trades_now = querydb.get_aggregate_trades_current_period(cursor, interval)
+    aggregate_trades_prev = querydb.get_aggregate_trades_previous_period(cursor, interval)
+    fig = go.Figure(layout=go.Layout(height=300))
+    if aggregate_trades_now["count"][0] > 0:
+        if aggregate_trades_prev["count"][0] > 0:
+            dash_utils.add_delta_trace(fig, "Transactions", aggregate_trades_now["count"][0], aggregate_trades_prev["count"][0], 0, 0)
+            dash_utils.add_delta_trace(fig, "Amount Traded", aggregate_trades_now["amountTraded"][0], aggregate_trades_prev["amountTraded"][0], 0, 1)
+            
+        else:
+            dash_utils.add_trace(fig, "Transactions", aggregate_trades_now["count"][0], 0, 0)
+            dash_utils.add_trace(fig, "Amount Traded", aggregate_trades_now["amountTraded"][0], 0, 1)
+        fig.update_layout(grid = {"rows": 1, "columns": 2,  'pattern': "independent"},) 
+    else:
+        fig.update_layout(annotations = [{"text": "No transactions found", "xref": "paper", "yref": "paper", "showarrow": False, "font": {"size": 28}}])
     cursor.close()
 
-    return pairs, assets, [html.Span(f"Last updated: {datetime.datetime.now()}")]
+    overview_fig = dcc.Graph(figure=fig) if aggregate_trades_now["count"][0] > 0 else None
+
+    return pairs, assets, [html.Span(f"Last updated: {datetime.datetime.now()}")], overview_fig
 
 
 @app.callback(
@@ -147,8 +166,8 @@ def top_pairs_buy_side(n, value, interval):
     df_sell_side = querydb.get_top_pairs_sell_side(cursor, value, interval)
     cursor.close()
 
-    fig_buy = px.bar(df_buy_side, x='baseName', y='totalAmount', log_y=True)
-    fig_sell = px.bar(df_sell_side, x='baseName', y='totalAmount', log_y=True)
+    fig_buy = px.bar(df_buy_side, x='baseName', y='totalAmount', log_y=True, color_discrete_sequence =['green'])
+    fig_sell = px.bar(df_sell_side, x='baseName', y='totalAmount', log_y=True, color_discrete_sequence =['red'])
 
     buy = dcc.Graph(figure=fig_buy) if df_buy_side.shape[0] > 0 else "No recent trades"
     sell = dcc.Graph(figure=fig_sell) if df_sell_side.shape[0] > 0 else "No recent trades"
