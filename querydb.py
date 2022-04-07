@@ -1,7 +1,6 @@
 import pandas as pd
 
-def get_latest_trades(connection, base_name):
-    cursor = connection.cursor()
+def get_latest_trades(cursor, base_name):
     cursor.execute("""
     select tsMs, currencyPairId, amount, price,  marketId, orderSide,
            lookUp('pairs', 'baseName', 'id', currencyPairId) AS baseName,
@@ -14,40 +13,35 @@ def get_latest_trades(connection, base_name):
     """, {"baseName": base_name})
 
     df = pd.DataFrame(cursor, columns=[item[0] for item in cursor.description])    
-    cursor.close()
     return df[["tsMs", "quoteName", "market", "exchange", "amount", "price", "orderSide"]]
 
-def latest_period_prices(connection, base_name):
-    cursor = connection.cursor()
+def latest_period_prices(cursor, base_name, interval):
     cursor.execute("""
     select avg(price) AS avgPrice, max(price) as maxPrice, min(price) AS minPrice, 
            count(*) AS count, sum(amount) AS amountTraded
     from trades 
     WHERE lookUp('pairs', 'baseName', 'id', currencyPairId) = (%(baseName)s) 
     AND lookUp('pairs', 'quoteName', 'id', currencyPairId) = 'United States Dollar'
-    AND tsMs > cast(ago('PT1M') as long)
-    """, {"baseName": base_name})
+    AND tsMs > cast(ago((%(intervalString)s)) as long)
+    """, {"baseName": base_name, "intervalString": f"PT{interval}M"})
     df = pd.DataFrame(cursor, columns=[item[0] for item in cursor.description])
-    cursor.close()
     return df
 
-def previous_period_prices(connection, base_name):
-    cursor = connection.cursor()
+def previous_period_prices(cursor, base_name, interval):
     cursor.execute("""
     select avg(price) AS avgPrice, max(price) as maxPrice, min(price) AS minPrice, 
            count(*) AS count, sum(amount) AS amountTraded
     from trades 
     WHERE lookUp('pairs', 'baseName', 'id', currencyPairId) = (%(baseName)s) 
     AND lookUp('pairs', 'quoteName', 'id', currencyPairId) = 'United States Dollar'
-    AND tsMs > cast(ago('PT2M') as long) 
-    AND tsMs < cast(ago('PT1M') as long)
-    """, {"baseName": base_name})
+    AND tsMs < cast(ago((%(intervalString)s)) as long)
+    AND tsMs > cast(ago((%(previousIntervalString)s)) as long)
+    """, {"baseName": base_name, "intervalString": f"PT{interval}M", "previousIntervalString": f"PT{interval*2}M"})
     df = pd.DataFrame(cursor, columns=[item[0] for item in cursor.description])
-    cursor.close()
+    
     return df
 
-def all_prices(connection, base_name):
-    cursor = connection.cursor()
+def all_prices(cursor, base_name):
     cursor.execute("""
     select tsMs, price
     from trades 
@@ -58,8 +52,7 @@ def all_prices(connection, base_name):
     """, {"baseName": base_name})
     return pd.DataFrame(cursor, columns=[item[0] for item in cursor.description])
 
-def get_pairs(connection, base_name):
-    cursor = connection.cursor()
+def get_pairs(cursor, base_name):
     cursor.execute("""
     select lookUp('exchanges', 'name', 'id', exchangeId) AS market, count(*) AS count
     from trades 
@@ -68,11 +61,9 @@ def get_pairs(connection, base_name):
 	order by count DESC
     """, {"baseName": base_name})
     df = pd.DataFrame(cursor, columns=[item[0] for item in cursor.description])
-    cursor.close()
     return df
 
-def get_assets(connection, base_name):
-    cursor = connection.cursor()
+def get_assets(cursor, base_name):
     cursor.execute("""
     select lookUp('pairs', 'quoteName', 'id', currencyPairId) AS asset, count(*) AS count
     from trades 
@@ -81,11 +72,9 @@ def get_assets(connection, base_name):
 	order by count DESC
     """, {"baseName": base_name})
     df = pd.DataFrame(cursor, columns=[item[0] for item in cursor.description])
-    cursor.close()
     return df
 
-def get_order_side(connection, base_name):
-    cursor = connection.cursor()
+def get_order_side(cursor, base_name):
     cursor.execute("""
     select orderSide, count(*) AS count
     from trades 
@@ -95,7 +84,6 @@ def get_order_side(connection, base_name):
 	order by count DESC
     """, {"baseName": base_name})
     df = pd.DataFrame(cursor, columns=[item[0] for item in cursor.description])
-    cursor.close()
     return df
 
 def get_all_latest_trades(cursor):

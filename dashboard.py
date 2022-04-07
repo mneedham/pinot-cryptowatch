@@ -57,7 +57,7 @@ app.layout = html.Div([
         ),
     dcc.Tabs(id="tabs-example-graph", value='overview', children=[
         dcc.Tab(label='Overview', value='overview', children=[tabs.overview(all_quotes)]),
-        # dcc.Tab(label='Assets', value='by-asset', children=[tabs.assets(all_bases)]),
+        dcc.Tab(label='Assets', value='by-asset', children=[tabs.assets(all_bases)]),
         dcc.Tab(label='Latest Trades', value='all-latest-trades', children=[tabs.latest_trades()]),
     ]),
     html.Div(id='tabs-content-example-graph')
@@ -73,16 +73,17 @@ def update_refresh_rate(value):
 #     [Output(component_id='latest-trades-bases', component_property='children'),
 #      Output(component_id='prices', component_property='figure'),
 #      Output(component_id='markets', component_property='figure'),
-#      Output(component_id='overview-assets', component_property='children'),
+#      Output(component_id='assets', component_property='figure'),
 #      Output(component_id='order_side', component_property='figure'),
 #      ],
-#     [Input('bases-dropdown', 'value'), Input('interval-component', 'n_intervals')]
+#     [Input('bases-dropdown', 'value'), Input('interval-component', 'n_intervals'),  Input('data-recency', 'value')]
 # )
-# def bases(base_name, n):
-#     latest_trades = dash_utils.as_datatable(querydb.get_latest_trades(connection, base_name))
+# def bases(base_name, n, interval):
+#     cursor = connection.cursor()
+#     latest_trades = dash_utils.as_datatable(querydb.get_latest_trades(cursor, base_name))
 
-#     df_now = querydb.latest_period_prices(connection, base_name)
-#     df_prev = querydb.previous_period_prices(connection, base_name)
+#     df_now = querydb.latest_period_prices(cursor, base_name, interval)
+#     df_prev = querydb.previous_period_prices(cursor, base_name, interval)
     
 #     fig = go.Figure()
 #     if df_now["count"][0] > 0:
@@ -106,10 +107,12 @@ def update_refresh_rate(value):
 #             annotations = [{"text": "No transactions found", "xref": "paper", "yref": "paper", "showarrow": False, "font": {"size": 28}}]
 #         )
 
-#     fig_prices = px.line(querydb.all_prices(connection, base_name), x="tsMs", y="price", title='Price over time')
-#     fig_market = px.bar(querydb.get_pairs(connection, base_name), x='market', y='count', title="Top markets")
-#     fig_asset = px.bar(querydb.get_assets(connection, base_name), x='asset', y='count', title="Top assets")
-#     fig_order_side = px.bar(querydb.get_order_side(connection, base_name), x='orderSide', y='count', title="Order Side")
+#     fig_prices = px.line(querydb.all_prices(cursor, base_name), x="tsMs", y="price", title='Price over time')
+#     fig_market = px.bar(querydb.get_pairs(cursor, base_name), x='market', y='count', title="Top markets")
+#     fig_asset = px.bar(querydb.get_assets(cursor, base_name), x='asset', y='count', title="Top assets")
+#     fig_order_side = px.bar(querydb.get_order_side(cursor, base_name), x='orderSide', y='count', title="Order Side")
+
+#     cursor.close()
 
 #     return latest_trades, fig, fig_market, fig_asset, fig_order_side
 
