@@ -113,7 +113,7 @@ def get_all_latest_trades(cursor):
     df = pd.DataFrame(cursor, columns=[item[0] for item in cursor.description])    
     return df[["tsMs", "baseName", "quoteName", "market", "exchange", "amount", "price", "orderSide"]]
 
-def get_all_pairs(cursor):
+def get_all_pairs(cursor, interval):
     cursor.execute("""
     select lookUp('pairs', 'baseName', 'id', currencyPairId) AS base,
        lookUp('pairs', 'quoteName', 'id', currencyPairId) AS quote, 
@@ -122,28 +122,28 @@ def get_all_pairs(cursor):
        max(amount) as biggestTrade,
        avg(amount) as averageTrade
     from trades 
+    where tsMs > cast(ago((%(interval)s)) as long)
     group by quote, base
     order by transactions DESC
     limit 10
-    """)
+    """, {"interval": interval})
 
     df = pd.DataFrame(cursor, columns=[item[0] for item in cursor.description])
     for column in ["transactions", "amountTraded", "biggestTrade", "averageTrade"]:
         df[column]=df[column].map('{:,.3f}'.format)
     return df
 
-def get_all_assets(cursor):
+def get_all_assets(cursor, interval):
     cursor.execute("""
     select lookUp('pairs', 'baseName', 'id', currencyPairId) AS baseName, 
            min(price) AS minPrice, avg(price) AS avgPrice, max(price) as maxPrice,  
            count(*) AS count, sum(amount) AS amountTraded		   
     from trades 
     WHERE lookUp('pairs', 'quoteName', 'id', currencyPairId) = 'United States Dollar'
-    --AND tsMs > cast(ago('PT2M') as long) 
-    --AND tsMs < cast(ago('PT1M') as long)
+    AND tsMs > cast(ago((%(interval)s)) as long)
 	group by baseName
 	order by count DESC
-    """)
+    """, {"interval": interval})
 
     df = pd.DataFrame(cursor, columns=[item[0] for item in cursor.description])
 
@@ -152,28 +152,30 @@ def get_all_assets(cursor):
     return df
 
 
-def get_top_pairs_buy_side(cursor, quote_name):
+def get_top_pairs_buy_side(cursor, quote_name, interval):
     cursor.execute("""
     select sum(amount*price) AS totalAmount,
            lookUp('pairs', 'baseName', 'id', currencyPairId) AS baseName,
            lookUp('pairs', 'quoteName', 'id', currencyPairId) AS quoteName
     from trades 
     where quoteName = (%(quoteName)s) AND orderSide = 'BUYSIDE'
+    AND tsMs > cast(ago((%(interval)s)) as long)
     group by baseName, quoteName
     order by totalAmount DESC
-    """, {"quoteName": quote_name})
+    """, {"quoteName": quote_name, "interval": interval})
     return pd.DataFrame(cursor, columns=[item[0] for item in cursor.description])
 
-def get_top_pairs_sell_side(cursor, quote_name):
+def get_top_pairs_sell_side(cursor, quote_name, interval):
     cursor.execute("""
     select sum(amount*price) AS totalAmount,
            lookUp('pairs', 'baseName', 'id', currencyPairId) AS baseName,
            lookUp('pairs', 'quoteName', 'id', currencyPairId) AS quoteName
     from trades 
     where quoteName = (%(quoteName)s) AND orderSide = 'SELLSIDE'
+    AND tsMs > cast(ago((%(interval)s)) as long)
     group by baseName, quoteName
     order by totalAmount DESC
-    """, {"quoteName": quote_name})
+    """, {"quoteName": quote_name, "interval": interval})
     return pd.DataFrame(cursor, columns=[item[0] for item in cursor.description])
 
 def quotes(connection):
