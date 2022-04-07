@@ -10,7 +10,7 @@ import dash_utils
 
 external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
 app = Dash(__name__, external_stylesheets=external_stylesheets)
-app.title = "Crypto Watch Dashboard"
+app.title = "Crypto Watch Real-Time Dashboard"
 app.config.suppress_callback_exceptions=True
 
 connection = connect(
@@ -24,7 +24,7 @@ all_quotes = querydb.quotes(connection)
 all_bases = querydb.bases(connection)
 
 app.layout = html.Div([
-    html.H1("Crypto Watch Dashboard", style={'text-align': 'center'}),
+    html.H1("Crypto Watch Real-Time Dashboard", style={'text-align': 'center'}),
     html.Div(children=[
         html.Div(children=[
             html.Div(children=[
@@ -50,7 +50,6 @@ app.layout = html.Div([
         html.Div(id='latest-timestamp', style={"padding": "5px 0"}),
     ], className="one row", style={"backgroundColor": "#EFEFEF", "padding": "10px", "margin": "10px 0", "borderRadius": "10px"}),
 
-    # html.Div(id='latest-timestamp'),  
     dcc.Interval(
             id='interval-component',
             interval=1 * 1000,  # in milliseconds
@@ -59,7 +58,7 @@ app.layout = html.Div([
     dcc.Tabs(id="tabs-example-graph", value='overview', children=[
         dcc.Tab(label='Overview', value='overview', children=[tabs.overview(all_quotes)]),
         # dcc.Tab(label='Assets', value='by-asset', children=[tabs.assets(all_bases)]),
-        # dcc.Tab(label='Latest Trades', value='all-latest-trades', children=[tabs.latest_trades()]),
+        dcc.Tab(label='Latest Trades', value='all-latest-trades', children=[tabs.latest_trades()]),
     ]),
     html.Div(id='tabs-content-example-graph')
 ])
@@ -143,10 +142,12 @@ def latest_trades(n):
     [Input('interval-component', 'n_intervals'), Input('quotes-dropdown', 'value'),  Input('data-recency', 'value')]
 )
 def top_pairs_buy_side(n, value, interval):    
+    cursor = connection.cursor()
     df_buy_side = querydb.get_top_pairs_buy_side(cursor, value, interval)
-    fig_buy = px.bar(df_buy_side, x='baseName', y='totalAmount', log_y=True)
-
     df_sell_side = querydb.get_top_pairs_sell_side(cursor, value, interval)
+    cursor.close()
+
+    fig_buy = px.bar(df_buy_side, x='baseName', y='totalAmount', log_y=True)
     fig_sell = px.bar(df_sell_side, x='baseName', y='totalAmount', log_y=True)
 
     buy = dcc.Graph(figure=fig_buy) if df_buy_side.shape[0] > 0 else "No recent trades"

@@ -7,7 +7,7 @@ def as_data_table_or_message(df, message):
 def as_datatable(df):
     style_table = {'overflowX': 'auto'}
     style_cell = {
-        'minWidth': '180px', 'width': '180px', 'maxWidth': '180px',
+        'minWidth': '50px', 'width': '150px', 'maxWidth': '18   0px',
         'overflow': 'hidden',
         'textOverflow': 'ellipsis',
         'padding': '10px'
