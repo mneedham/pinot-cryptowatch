@@ -41,48 +41,51 @@ def previous_period_prices(cursor, base_name, interval):
     
     return df
 
-def all_prices(cursor, base_name):
+def all_prices(cursor, base_name, interval):
     cursor.execute("""
     select tsMs, price
     from trades 
     WHERE lookUp('pairs', 'baseName', 'id', currencyPairId) = (%(baseName)s) 
     AND lookUp('pairs', 'quoteName', 'id', currencyPairId) = 'United States Dollar'
+    AND tsMs > cast(ago((%(intervalString)s)) as long)
     ORDER BY tsMs DESC
     LIMIT 10000
-    """, {"baseName": base_name})
+    """, {"baseName": base_name,"intervalString": f"PT{interval}M"})
     return pd.DataFrame(cursor, columns=[item[0] for item in cursor.description])
 
-def get_pairs(cursor, base_name):
+def get_pairs(cursor, base_name, interval):
     cursor.execute("""
     select lookUp('exchanges', 'name', 'id', exchangeId) AS market, count(*) AS count
     from trades 
     WHERE lookUp('pairs', 'baseName', 'id', currencyPairId) = (%(baseName)s) 
     group by market
 	order by count DESC
-    """, {"baseName": base_name})
+    """, {"baseName": base_name, "intervalString": f"PT{interval}M"})
     df = pd.DataFrame(cursor, columns=[item[0] for item in cursor.description])
     return df
 
-def get_assets(cursor, base_name):
+def get_assets(cursor, base_name, interval):
     cursor.execute("""
     select lookUp('pairs', 'quoteName', 'id', currencyPairId) AS asset, count(*) AS count
     from trades 
-    WHERE lookUp('pairs', 'baseName', 'id', currencyPairId) = (%(baseName)s) 
+    WHERE lookUp('pairs', 'baseName', 'id', currencyPairId) = (%(baseName)s)
+    AND tsMs > cast(ago((%(intervalString)s)) as long) 
     group by asset
 	order by count DESC
     """, {"baseName": base_name})
     df = pd.DataFrame(cursor, columns=[item[0] for item in cursor.description])
     return df
 
-def get_order_side(cursor, base_name):
+def get_order_side(cursor, base_name, interval):
     cursor.execute("""
     select orderSide, count(*) AS count
     from trades 
     WHERE lookUp('pairs', 'baseName', 'id', currencyPairId) = (%(baseName)s) 
     AND orderSide != 'null'
+    AND tsMs > cast(ago((%(intervalString)s)) as long) 
     group by orderSide
 	order by count DESC
-    """, {"baseName": base_name})
+    """, {"baseName": base_name, "intervalString": f"PT{interval}M"})
     df = pd.DataFrame(cursor, columns=[item[0] for item in cursor.description])
     return df
 

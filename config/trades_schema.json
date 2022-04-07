@@ -8,13 +8,13 @@
     "dataType" : "STRING"
   }, {
     "name" : "exchangeId",
-    "dataType" : "STRING"
+    "dataType" : "LONG"
   }, {
     "name" : "currencyPairId",
-    "dataType" : "STRING"
+    "dataType" : "LONG"
   }, {
     "name" : "marketId",
-    "dataType" : "STRING"
+    "dataType" : "LONG"
   } ],
   "metricFieldSpecs" : [ {
     "name" : "price",

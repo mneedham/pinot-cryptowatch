@@ -12,6 +12,19 @@ docker exec -it pinot-controller-crypto bin/pinot-admin.sh AddTable   \
   -exec
 ----
 
+[source,bash]
+----
+docker exec -it pinot-controller-crypto bin/pinot-admin.sh AddTable   \
+  -tableConfigFile /config/trades_offline_table.json   \
+  -exec
+----
+
+[source,bash]
+----
+docker exec -it pinot-controller-crypto bin/pinot-admin.sh LaunchDataIngestionJob   \
+  -jobSpecFile /config/trades-job-spec.yml
+----
+
 ## markets table
 
 [source,bash]
