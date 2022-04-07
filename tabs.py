@@ -11,22 +11,29 @@ def overview(all_quotes):
         ]),
         html.Div([
             html.H2('Most Traded Assets'),
-            html.Label(children=[
-                html.Span("Quote currency:", style={"font-weight": "bold"}),
-                dcc.Dropdown(all_quotes, all_quotes[0], id='quotes-dropdown'),
-            ]),
+            html.Div(id="quote-currency", children=[
+                html.Div(children=[
+                    html.Span("Purchase currency", style={"font-weight": "bold"})
+                ], className="two columns"),
+                html.Div(children=[
+                    dcc.Dropdown(all_quotes, all_quotes[0], id='quotes-dropdown'),
+                ], className="three columns"),                
+            ], className="one row"),
             html.Div([
                 html.Div([
-                    html.H3("Buy Side"),
                     html.Div(id="top-pairs-buy-side"),
-                    # dcc.Graph(id='top-pairs-buy-side', figure={}),
-                ], className="six columns"),
-                html.Div([
-                    html.H3("Sell Side"),
-                    html.Div(id="top-pairs-sell-side"),
-                    # dcc.Graph(id='top-pairs-sell-side', figure={}),
                 ], className="six columns"),
             
+            ], className="one row"),
+            html.Div([
+                html.Div([
+                    html.H2("Top Exchanges"),
+                    html.Div(id="top-exchange"),
+                ], className="six columns"),
+                html.Div([
+                    html.H2("Assets used to make purchases"),
+                    html.Div(id="top-quote"),
+                ], className="six columns"),
             ], className="one row"),
             
         ]),         

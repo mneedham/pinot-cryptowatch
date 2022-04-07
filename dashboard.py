@@ -156,23 +156,30 @@ def latest_trades(n):
     return latest_trades
 
 @app.callback(
-    [Output(component_id='top-pairs-buy-side', component_property='children'),
-     Output(component_id='top-pairs-sell-side', component_property='children')],
+    [Output(component_id='quote-currency', component_property='style'),
+     Output(component_id='top-pairs-buy-side', component_property='children'),
+     Output(component_id='top-exchange', component_property='children'),
+     Output(component_id='top-quote', component_property='children')
+     ],
     [Input('interval-component', 'n_intervals'), Input('quotes-dropdown', 'value'),  Input('data-recency', 'value')]
 )
-def top_pairs_buy_side(n, value, interval):    
+def charts(n, value, interval):    
     cursor = connection.cursor()
     df_buy_side = querydb.get_top_pairs_buy_side(cursor, value, interval)
-    df_sell_side = querydb.get_top_pairs_sell_side(cursor, value, interval)
+    df_exchange = querydb.get_exchange_buy_side(cursor, interval)
+    df_quote = querydb.get_quote_buy_side(cursor, interval)
     cursor.close()
 
     fig_buy = px.bar(df_buy_side, x='baseName', y='totalAmount', log_y=True, color_discrete_sequence =['green'])
-    fig_sell = px.bar(df_sell_side, x='baseName', y='totalAmount', log_y=True, color_discrete_sequence =['red'])
+    fig_exchange = px.bar(df_exchange, x='exchangeName', y='transactions', log_y=True, color_discrete_sequence =['blue'])
+    fig_quote = px.bar(df_quote, x='quoteName', y='transactions', log_y=True, color_discrete_sequence =['purple'])
 
+    quote_currency_styling = {'display': 'block'} if df_buy_side.shape[0] > 0 else {"display": "none"}
     buy = dcc.Graph(figure=fig_buy) if df_buy_side.shape[0] > 0 else "No recent trades"
-    sell = dcc.Graph(figure=fig_sell) if df_sell_side.shape[0] > 0 else "No recent trades"
+    exchange = dcc.Graph(figure=fig_exchange) if df_exchange.shape[0] > 0 else "No recent trades"
+    quote = dcc.Graph(figure=fig_quote) if df_quote.shape[0] > 0 else "No recent trades"
 
-    return buy, sell
+    return quote_currency_styling, buy, exchange, quote
 
 if __name__ == '__main__':
     app.run_server(debug=True)

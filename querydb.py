@@ -172,6 +172,27 @@ def get_aggregate_trades_previous_period(cursor, interval):
 
     return pd.DataFrame(cursor, columns=[item[0] for item in cursor.description])
 
+def get_exchange_buy_side(cursor, interval):
+    cursor.execute("""
+    select lookUp('exchanges', 'name', 'id', exchangeId) AS exchangeName, count(*) AS transactions
+    from trades
+    where orderSide = 'BUYSIDE'
+    AND tsMs > cast(ago((%(intervalString)s)) as long)
+    group by exchangeName
+    order by transactions DESC
+    """, {"intervalString": f"PT{interval}M"})
+    return pd.DataFrame(cursor, columns=[item[0] for item in cursor.description])
+
+def get_quote_buy_side(cursor, interval):
+    cursor.execute("""
+    select lookUp('pairs', 'quoteName', 'id', currencyPairId) AS quoteName, count(*) AS transactions
+    from trades
+    where orderSide = 'BUYSIDE'
+    AND tsMs > cast(ago((%(intervalString)s)) as long)
+    group by quoteName
+    order by transactions DESC
+    """, {"intervalString": f"PT{interval}M"})
+    return pd.DataFrame(cursor, columns=[item[0] for item in cursor.description])
 
 def get_top_pairs_buy_side(cursor, quote_name, interval):
     cursor.execute("""
