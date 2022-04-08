@@ -41,10 +41,16 @@ def overview(all_quotes):
 
 def assets(all_bases):
     return html.Div([
-            html.H2("By Asset"),
-            html.Label(children=[
-                dcc.Dropdown(all_bases, all_bases[0], id='bases-dropdown'),
-            ]),  
+            html.H2("Assets"),
+            html.Div(children=[
+                html.Div(children=[
+                    html.Span("Select asset", style={"font-weight": "bold"})
+                ], className="two columns"),
+                html.Div(children=[
+                    dcc.Dropdown(all_bases, all_bases[0], id='bases-dropdown'),
+                ], className="three columns"),                
+            ], className="one row"),
+ 
             dcc.Graph(id='prices', figure={}),
             dcc.Graph(id='markets', figure={}),
             dcc.Graph(id='assets', figure={}),

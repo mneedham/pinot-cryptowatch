@@ -69,18 +69,12 @@ app.layout = html.Div([
 def update_refresh_rate(value):
     return [value * 1000]
 
-# @app.callback(
-#     [Output(component_id='latest-trades-bases', component_property='children'),
-#      Output(component_id='prices', component_property='figure'),
-#      Output(component_id='markets', component_property='figure'),
-#      Output(component_id='assets', component_property='figure'),
-#      Output(component_id='order_side', component_property='figure'),
-#      ],
-#     [Input('bases-dropdown', 'value'), Input('interval-component', 'n_intervals'),  Input('data-recency', 'value')]
-# )
 @app.callback(
     [Output(component_id='latest-trades-bases', component_property='children'),
     Output(component_id='prices', component_property='figure'),
+    Output(component_id='markets', component_property='figure'),
+    Output(component_id='assets', component_property='figure'),
+    Output(component_id='order_side', component_property='figure'),
      ],
     [Input('bases-dropdown', 'value'), Input('interval-component', 'n_intervals'),  Input('data-recency', 'value')]
 )
@@ -113,15 +107,13 @@ def bases(base_name, n, interval):
             annotations = [{"text": "No transactions found", "xref": "paper", "yref": "paper", "showarrow": False, "font": {"size": 28}}]
         )
 
-    # fig_prices = px.line(querydb.all_prices(cursor, base_name, interval), x="tsMs", y="price", title='Price over time')
-    # fig_market = px.bar(querydb.get_pairs(cursor, base_name, interval), x='market', y='count', title="Top markets")
-    # fig_asset = px.bar(querydb.get_assets(cursor, base_name, interval), x='asset', y='count', title="Top assets")
-    # fig_order_side = px.bar(querydb.get_order_side(cursor, base_name), x='orderSide', y='count', title="Order Side")
+    fig_market = px.bar(querydb.get_pairs(cursor, base_name, interval), x='market', y='count', title="Top markets")
+    fig_asset = px.bar(querydb.get_assets(cursor, base_name, interval), x='asset', y='count', title="Top assets")
+    fig_order_side = px.bar(querydb.get_order_side(cursor, base_name, interval), x='orderSide', y='count', title="Order Side")
 
     cursor.close()
 
-    # return latest_trades, fig, fig_market, fig_asset, fig_order_side
-    return latest_trades, fig
+    return latest_trades, fig, fig_market, fig_asset, fig_order_side
 
 @app.callback(
     [Output(component_id='pairs', component_property='children'),

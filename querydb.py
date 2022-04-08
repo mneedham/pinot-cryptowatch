@@ -16,24 +16,29 @@ def get_latest_trades(cursor, base_name):
     return df[["tsMs", "quoteName", "market", "exchange", "amount", "price", "orderSide"]]
 
 def latest_period_prices(cursor, base_name, interval):
-    cursor.execute("""
+    cursor.execute(f"""
     select avg(price) AS avgPrice, max(price) as maxPrice, min(price) AS minPrice, 
            count(*) AS count, sum(amount) AS amountTraded
     from trades 
-    WHERE lookUp('pairs', 'baseName', 'id', currencyPairId) = (%(baseName)s) 
-    AND lookUp('pairs', 'quoteName', 'id', currencyPairId) = 'United States Dollar'
+    WHERE IN_SUBQUERY(
+        currencyPairId, 
+        'SELECT ID_SET(id) FROM pairs WHERE baseName = ''{base_name}'' AND quoteName = ''United States Dollar'''
+        ) = 1
     AND tsMs > cast(ago((%(intervalString)s)) as long)
     """, {"baseName": base_name, "intervalString": f"PT{interval}M"})
     df = pd.DataFrame(cursor, columns=[item[0] for item in cursor.description])
     return df
 
 def previous_period_prices(cursor, base_name, interval):
-    cursor.execute("""
+
+    cursor.execute(f"""
     select avg(price) AS avgPrice, max(price) as maxPrice, min(price) AS minPrice, 
            count(*) AS count, sum(amount) AS amountTraded
     from trades 
-    WHERE lookUp('pairs', 'baseName', 'id', currencyPairId) = (%(baseName)s) 
-    AND lookUp('pairs', 'quoteName', 'id', currencyPairId) = 'United States Dollar'
+    WHERE IN_SUBQUERY(
+        currencyPairId, 
+        'SELECT ID_SET(id) FROM pairs WHERE baseName = ''{base_name}'' AND quoteName = ''United States Dollar'''
+        ) = 1
     AND tsMs < cast(ago((%(intervalString)s)) as long)
     AND tsMs > cast(ago((%(previousIntervalString)s)) as long)
     """, {"baseName": base_name, "intervalString": f"PT{interval}M", "previousIntervalString": f"PT{interval*2}M"})
@@ -42,11 +47,13 @@ def previous_period_prices(cursor, base_name, interval):
     return df
 
 def all_prices(cursor, base_name, interval):
-    cursor.execute("""
+    cursor.execute(f"""
     select tsMs, price
     from trades 
-    WHERE lookUp('pairs', 'baseName', 'id', currencyPairId) = (%(baseName)s) 
-    AND lookUp('pairs', 'quoteName', 'id', currencyPairId) = 'United States Dollar'
+    WHERE IN_SUBQUERY(
+        currencyPairId, 
+        'SELECT ID_SET(id) FROM pairs WHERE baseName = ''{base_name}'' AND quoteName = ''United States Dollar'''
+        ) = 1
     AND tsMs > cast(ago((%(intervalString)s)) as long)
     ORDER BY tsMs DESC
     LIMIT 10000
@@ -54,10 +61,14 @@ def all_prices(cursor, base_name, interval):
     return pd.DataFrame(cursor, columns=[item[0] for item in cursor.description])
 
 def get_pairs(cursor, base_name, interval):
-    cursor.execute("""
+    cursor.execute(f"""
     select lookUp('exchanges', 'name', 'id', exchangeId) AS market, count(*) AS count
-    from trades 
-    WHERE lookUp('pairs', 'baseName', 'id', currencyPairId) = (%(baseName)s) 
+    from trades     
+    WHERE IN_SUBQUERY(
+        currencyPairId, 
+        'SELECT ID_SET(id) FROM pairs WHERE baseName = ''{base_name}'''
+        ) = 1
+    AND tsMs > cast(ago((%(intervalString)s)) as long)
     group by market
 	order by count DESC
     """, {"baseName": base_name, "intervalString": f"PT{interval}M"})
@@ -65,22 +76,28 @@ def get_pairs(cursor, base_name, interval):
     return df
 
 def get_assets(cursor, base_name, interval):
-    cursor.execute("""
+    cursor.execute(f"""
     select lookUp('pairs', 'quoteName', 'id', currencyPairId) AS asset, count(*) AS count
     from trades 
-    WHERE lookUp('pairs', 'baseName', 'id', currencyPairId) = (%(baseName)s)
+    WHERE IN_SUBQUERY(
+        currencyPairId, 
+        'SELECT ID_SET(id) FROM pairs WHERE baseName = ''{base_name}'''
+        ) = 1
     AND tsMs > cast(ago((%(intervalString)s)) as long) 
     group by asset
 	order by count DESC
-    """, {"baseName": base_name})
+    """, {"baseName": base_name, "intervalString": f"PT{interval}M"})
     df = pd.DataFrame(cursor, columns=[item[0] for item in cursor.description])
     return df
 
 def get_order_side(cursor, base_name, interval):
-    cursor.execute("""
+    cursor.execute(f"""
     select orderSide, count(*) AS count
     from trades 
-    WHERE lookUp('pairs', 'baseName', 'id', currencyPairId) = (%(baseName)s) 
+    WHERE IN_SUBQUERY(
+        currencyPairId, 
+        'SELECT ID_SET(id) FROM pairs WHERE baseName = ''{base_name}'''
+        ) = 1
     AND orderSide != 'null'
     AND tsMs > cast(ago((%(intervalString)s)) as long) 
     group by orderSide
