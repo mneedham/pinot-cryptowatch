@@ -128,10 +128,10 @@ def get_all_pairs(cursor, interval):
     cursor.execute("""
     select lookUp('pairs', 'baseName', 'id', currencyPairId) AS base,
        lookUp('pairs', 'quoteName', 'id', currencyPairId) AS quote, 
-	   count(*) AS transactions,
-	   sum(amount) AS amountTraded,
+	   count(*) AS transactions,	   
        max(amount) as biggestTrade,
-       avg(amount) as averageTrade
+       avg(amount) as averageTrade,
+       sum(amount) AS amountTraded
     from trades 
     where tsMs > cast(ago((%(intervalString)s)) as long)
     group by quote, base

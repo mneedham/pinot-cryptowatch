@@ -7,6 +7,7 @@ import datetime
 import querydb
 import tabs
 import dash_utils
+import concurrent.futures
 
 external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
 app = Dash(__name__, external_stylesheets=external_stylesheets)
@@ -87,8 +88,23 @@ def update_refresh_rate(value):
 def assets_page(base_name, n, interval):
     cursor = connection.cursor()
 
-    df_now = querydb.latest_period_prices(cursor, base_name, interval)
-    df_prev = querydb.previous_period_prices(cursor, base_name, interval)
+    results = {}
+    with concurrent.futures.ProcessPoolExecutor() as executor:
+        futures = {
+            executor.submit(querydb.latest_period_prices, cursor, base_name, interval): "now",
+            executor.submit(querydb.previous_period_prices, cursor, base_name, interval): "prev",
+            executor.submit(querydb.get_pairs, cursor, base_name, interval): "pairs",
+            executor.submit(querydb.get_latest_trades, cursor, base_name): "trades",
+            executor.submit(querydb.get_assets, cursor, base_name, interval): "assets",
+            executor.submit(querydb.get_order_side, cursor, base_name, interval): "order_side",
+        }
+        for future in concurrent.futures.as_completed(futures):
+            results[futures[future]] = future.result()
+    cursor.close()
+
+    df_now = results["now"]
+    df_prev = results["prev"]
+    trades_df = results["trades"]
     
     fig = go.Figure()
     if df_now["count"][0] > 0:
@@ -111,26 +127,22 @@ def assets_page(base_name, n, interval):
         fig.update_layout(
             annotations = [{"text": "No transactions found", "xref": "paper", "yref": "paper", "showarrow": False, "font": {"size": 28}}]
         )
-
-    pairs_df = querydb.get_pairs(cursor, base_name, interval)
-    fig_market = px.bar(pairs_df, x='market', y='count', title="Top markets", color_discrete_sequence =['blue'])
-    fig_asset = px.bar(querydb.get_assets(cursor, base_name, interval), x='asset', y='count', title="Top assets", color_discrete_sequence =['green'])
-    fig_order_side = px.bar(querydb.get_order_side(cursor, base_name, interval), x='orderSide', y='count', title="Order Side", color_discrete_sequence =['purple'])
-
-    trades_df = querydb.get_latest_trades(cursor, base_name)
+    
+    fig_market = px.bar(results["pairs"], x='market', y='count', title="Top markets", color_discrete_sequence =['blue'])
+    fig_asset = px.bar(results["assets"], x='asset', y='count', title="Top assets", color_discrete_sequence =['green'])
+    fig_order_side = px.bar(results["order_side"], x='orderSide', y='count', title="Order Side", color_discrete_sequence =['purple'])
+    
     latest_trades = dash_utils.as_datatable(trades_df)
 
-    cursor.close()
-
     charts = [dcc.Graph(figure=fig), dcc.Graph(figure=fig_market), dcc.Graph(figure=fig_asset), dcc.Graph(figure=fig_order_side)] \
-        if pairs_df.shape[0] > 0  \
+        if results["pairs"].shape[0] > 0  \
         else "No recent trades"
 
     return latest_trades, charts
 
 @app.callback(
     [Output(component_id='pairs', component_property='children'),
-    Output(component_id='overview-assets', component_property='children'),
+     Output(component_id='overview-assets', component_property='children'),
      Output(component_id='latest-timestamp', component_property='children'),
      Output(component_id='aggregate-trades', component_property='children')
      ],
@@ -138,11 +150,26 @@ def assets_page(base_name, n, interval):
 )
 def overview(n, interval):
     cursor = connection.cursor()
-    pairs = dash_utils.as_data_table_or_message(querydb.get_all_pairs(cursor, interval), "No recent trades")
-    assets = dash_utils.as_data_table_or_message(querydb.get_all_assets(cursor, interval), "No recent trades")
 
-    aggregate_trades_now = querydb.get_aggregate_trades_current_period(cursor, interval)
-    aggregate_trades_prev = querydb.get_aggregate_trades_previous_period(cursor, interval)
+    results = {}
+    with concurrent.futures.ProcessPoolExecutor() as executor:
+        futures = {
+            executor.submit(querydb.get_all_pairs, cursor, interval): "pairs",
+            executor.submit(querydb.get_all_assets, cursor, interval): "assets",
+            executor.submit(querydb.get_aggregate_trades_current_period, cursor, interval): "trades_now",
+            executor.submit(querydb.get_aggregate_trades_previous_period, cursor, interval): "trades_previous"
+        }
+        for future in concurrent.futures.as_completed(futures):
+            results[futures[future]] = future.result()
+    cursor.close()
+
+    pairs = dash_utils.as_data_table_or_message(results["pairs"], "No recent trades")
+    assets = dash_utils.as_data_table_or_message(results["assets"], "No recent trades")
+
+    aggregate_trades_now = results["trades_now"]
+    aggregate_trades_prev = results["trades_previous"]
+      
+
     fig = go.Figure(layout=go.Layout(height=300))
     if aggregate_trades_now["count"][0] > 0:
         if aggregate_trades_prev["count"][0] > 0:
@@ -155,7 +182,7 @@ def overview(n, interval):
         fig.update_layout(grid = {"rows": 1, "columns": 2,  'pattern': "independent"},) 
     else:
         fig.update_layout(annotations = [{"text": "No transactions found", "xref": "paper", "yref": "paper", "showarrow": False, "font": {"size": 28}}])
-    cursor.close()
+    
 
     overview_fig = dcc.Graph(figure=fig) if aggregate_trades_now["count"][0] > 0 else None
 
@@ -180,10 +207,21 @@ def latest_trades(n):
 )
 def charts(n, value, interval):    
     cursor = connection.cursor()
-    df_buy_side = querydb.get_top_pairs_buy_side(cursor, value, interval)
-    df_exchange = querydb.get_exchange_buy_side(cursor, interval)
-    df_quote = querydb.get_quote_buy_side(cursor, interval)
+
+    results = {}
+    with concurrent.futures.ProcessPoolExecutor() as executor:
+        futures = {
+            executor.submit(querydb.get_top_pairs_buy_side, cursor, value, interval): "buy_side",
+            executor.submit(querydb.get_exchange_buy_side, cursor, interval): "exchange",
+            executor.submit(querydb.get_quote_buy_side, cursor, interval): "quote",
+        }
+        for future in concurrent.futures.as_completed(futures):
+            results[futures[future]] = future.result()
     cursor.close()
+
+    df_buy_side = results["buy_side"]
+    df_exchange = results["exchange"]
+    df_quote = results["quote"]    
 
     fig_buy = px.bar(df_buy_side, x='baseName', y='totalAmount', log_y=True, color_discrete_sequence =['green'])
     fig_exchange = px.bar(df_exchange, x='exchangeName', y='transactions', log_y=True, color_discrete_sequence =['blue'])
