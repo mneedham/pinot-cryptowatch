@@ -35,6 +35,14 @@ docker exec -it pinot-controller-crypto bin/pinot-admin.sh AddTable   \
   -exec
 ----
 
+[source, bash]
+----
+export tableName="markets"
+curl -X DELETE "http://localhost:9000/segments/${tableName}?type=OFFLINE" -H "accept: application/json" &&
+docker exec -it pinot-controller-crypto bin/pinot-admin.sh LaunchDataIngestionJob   \
+  -jobSpecFile /config/${tableName}-refresh-job-spec.yml
+----
+
 [source,bash]
 ----
 docker exec -it pinot-controller-crypto bin/pinot-admin.sh LaunchDataIngestionJob   \
@@ -57,6 +65,15 @@ docker exec -it pinot-controller-crypto bin/pinot-admin.sh LaunchDataIngestionJo
   -jobSpecFile /config/exchanges-job-spec.yml
 ----
 
+[source, bash]
+----
+export tableName="exchanges"
+curl -X DELETE "http://localhost:9000/segments/${tableName}?type=OFFLINE" -H "accept: application/json" &&
+docker exec -it pinot-controller-crypto bin/pinot-admin.sh LaunchDataIngestionJob   \
+  -jobSpecFile /config/${tableName}-refresh-job-spec.yml
+----
+
+
 ## pairs table
 
 [source,bash]
@@ -71,6 +88,15 @@ docker exec -it pinot-controller-crypto bin/pinot-admin.sh AddTable   \
 ----
 docker exec -it pinot-controller-crypto bin/pinot-admin.sh LaunchDataIngestionJob   \
   -jobSpecFile /config/pairs-job-spec.yml
+----
+
+
+[source, bash]
+----
+export tableName="pairs"
+curl -X DELETE "http://localhost:9000/segments/${tableName}?type=OFFLINE" -H "accept: application/json" &&
+docker exec -it pinot-controller-crypto bin/pinot-admin.sh LaunchDataIngestionJob   \
+  -jobSpecFile /config/${tableName}-refresh-job-spec.yml
 ----
 
 

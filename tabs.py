@@ -50,11 +50,7 @@ def assets(all_bases):
                     dcc.Dropdown(all_bases, all_bases[0], id='bases-dropdown'),
                 ], className="three columns"),                
             ], className="one row"),
- 
-            dcc.Graph(id='prices', figure={}),
-            dcc.Graph(id='markets', figure={}),
-            dcc.Graph(id='assets', figure={}),
-            dcc.Graph(id='order_side', figure={}),            
+            html.Div(id="asset-charts"),        
             html.Div([
                 html.H4('Latest Trades'),
                 html.Div(id='latest-trades-bases')

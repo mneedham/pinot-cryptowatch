@@ -20,8 +20,8 @@ connection = connect(
     scheme=( "http"),
 )
 cursor = connection.cursor()
-all_quotes = querydb.quotes(connection)
-all_bases = querydb.bases(connection)
+all_quotes = querydb.quotes(cursor)
+all_bases = querydb.bases(cursor)
 
 app.layout = html.Div([
     html.H1("Crypto Watch Real-Time Dashboard", style={'text-align': 'center'}),
@@ -69,18 +69,23 @@ app.layout = html.Div([
 def update_refresh_rate(value):
     return [value * 1000]
 
+# @app.callback(
+#     [Output(component_id='latest-trades-bases', component_property='children'),
+#     Output(component_id='prices', component_property='figure'),
+#     Output(component_id='markets', component_property='figure'),
+#     Output(component_id='assets', component_property='figure'),
+#     Output(component_id='order_side', component_property='figure'),
+#      ],
+#     [Input('bases-dropdown', 'value'), Input('interval-component', 'n_intervals'),  Input('data-recency', 'value')]
+# )
 @app.callback(
     [Output(component_id='latest-trades-bases', component_property='children'),
-    Output(component_id='prices', component_property='figure'),
-    Output(component_id='markets', component_property='figure'),
-    Output(component_id='assets', component_property='figure'),
-    Output(component_id='order_side', component_property='figure'),
+     Output(component_id="asset-charts", component_property="children")
      ],
     [Input('bases-dropdown', 'value'), Input('interval-component', 'n_intervals'),  Input('data-recency', 'value')]
 )
-def bases(base_name, n, interval):
+def assets_page(base_name, n, interval):
     cursor = connection.cursor()
-    latest_trades = dash_utils.as_datatable(querydb.get_latest_trades(cursor, base_name))
 
     df_now = querydb.latest_period_prices(cursor, base_name, interval)
     df_prev = querydb.previous_period_prices(cursor, base_name, interval)
@@ -107,13 +112,21 @@ def bases(base_name, n, interval):
             annotations = [{"text": "No transactions found", "xref": "paper", "yref": "paper", "showarrow": False, "font": {"size": 28}}]
         )
 
-    fig_market = px.bar(querydb.get_pairs(cursor, base_name, interval), x='market', y='count', title="Top markets")
-    fig_asset = px.bar(querydb.get_assets(cursor, base_name, interval), x='asset', y='count', title="Top assets")
-    fig_order_side = px.bar(querydb.get_order_side(cursor, base_name, interval), x='orderSide', y='count', title="Order Side")
+    pairs_df = querydb.get_pairs(cursor, base_name, interval)
+    fig_market = px.bar(pairs_df, x='market', y='count', title="Top markets", color_discrete_sequence =['blue'])
+    fig_asset = px.bar(querydb.get_assets(cursor, base_name, interval), x='asset', y='count', title="Top assets", color_discrete_sequence =['green'])
+    fig_order_side = px.bar(querydb.get_order_side(cursor, base_name, interval), x='orderSide', y='count', title="Order Side", color_discrete_sequence =['purple'])
+
+    trades_df = querydb.get_latest_trades(cursor, base_name)
+    latest_trades = dash_utils.as_datatable(trades_df)
 
     cursor.close()
 
-    return latest_trades, fig, fig_market, fig_asset, fig_order_side
+    charts = [dcc.Graph(figure=fig), dcc.Graph(figure=fig_market), dcc.Graph(figure=fig_asset), dcc.Graph(figure=fig_order_side)] \
+        if pairs_df.shape[0] > 0  \
+        else "No recent trades"
+
+    return latest_trades, charts
 
 @app.callback(
     [Output(component_id='pairs', component_property='children'),

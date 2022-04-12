@@ -1,14 +1,17 @@
 import pandas as pd
 
 def get_latest_trades(cursor, base_name):
-    cursor.execute("""
+    cursor.execute(f"""
     select tsMs, currencyPairId, amount, price,  marketId, orderSide,
            lookUp('pairs', 'baseName', 'id', currencyPairId) AS baseName,
            lookUp('pairs', 'quoteName', 'id', currencyPairId) AS quoteName,
            lookUp('markets', 'exchange', 'id', marketId) AS market,
            lookUp('exchanges', 'name', 'id', exchangeId) AS exchange
     from trades 
-    where baseName = (%(baseName)s) 
+    WHERE IN_SUBQUERY(
+        currencyPairId, 
+        'SELECT ID_SET(id) FROM pairs WHERE baseName = ''{base_name}'''
+        ) = 1
     order by tsMs DESC
     """, {"baseName": base_name})
 
@@ -228,8 +231,7 @@ def get_top_pairs_sell_side(cursor, quote_name, interval):
     """, {"quoteName": quote_name, "intervalString": f"PT{interval}M"})
     return pd.DataFrame(cursor, columns=[item[0] for item in cursor.description])
 
-def quotes(connection):
-    cursor = connection.cursor()
+def quotes(cursor):
     cursor.execute("""
     select count(*) AS count,
        lookUp('pairs', 'quoteName', 'id', currencyPairId) AS quoteName
@@ -240,12 +242,10 @@ def quotes(connection):
     limit 20
     """)
     df = pd.DataFrame(cursor, columns=[item[0] for item in cursor.description]) 
-    cursor.close()
 
     return df["quoteName"].values
 
-def bases(connection):
-    cursor = connection.cursor()
+def bases(cursor):
     cursor.execute("""
     select count(*) AS count,
        lookUp('pairs', 'baseName', 'id', currencyPairId) AS baseName
@@ -257,6 +257,5 @@ def bases(connection):
     """)
     
     df = pd.DataFrame(cursor, columns=[item[0] for item in cursor.description]) 
-    cursor.close()
 
     return df["baseName"].values
