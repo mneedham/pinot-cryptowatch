@@ -1,0 +1,13 @@
+executionFrameworkSpec:
+  name: 'standalone'
+  segmentTarPushJobRunnerClassName: 'org.apache.pinot.plugin.ingestion.batch.standalone.SegmentTarPushJobRunner'
+jobType: SegmentTarPush
+outputDirURI: '/data/pairs'
+overwriteOutput: true
+pinotFSSpecs:
+  - scheme: file
+    className: org.apache.pinot.spi.filesystem.LocalPinotFS
+tableSpec:
+  tableName: 'pairs'
+pinotClusterSpecs:
+  - controllerURI: 'http://localhost:9000'
