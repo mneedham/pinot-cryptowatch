@@ -27,7 +27,7 @@ def latest_period_prices(cursor, base_name, interval):
         currencyPairId, 
         'SELECT ID_SET(id) FROM pairs WHERE baseName = ''{base_name}'' AND quoteName = ''United States Dollar'''
         ) = 1
-    AND tsMs > cast(ago((%(intervalString)s)) as long)
+    AND tsMs > ago(%(intervalString)s)
     """, {"baseName": base_name, "intervalString": f"PT{interval}M"})
     df = pd.DataFrame(cursor, columns=[item[0] for item in cursor.description])
     return df
@@ -42,8 +42,8 @@ def previous_period_prices(cursor, base_name, interval):
         currencyPairId, 
         'SELECT ID_SET(id) FROM pairs WHERE baseName = ''{base_name}'' AND quoteName = ''United States Dollar'''
         ) = 1
-    AND tsMs < cast(ago((%(intervalString)s)) as long)
-    AND tsMs > cast(ago((%(previousIntervalString)s)) as long)
+    AND tsMs < ago(%(intervalString)s)
+    AND tsMs > ago(%(previousIntervalString)s)
     """, {"baseName": base_name, "intervalString": f"PT{interval}M", "previousIntervalString": f"PT{interval*2}M"})
     df = pd.DataFrame(cursor, columns=[item[0] for item in cursor.description])
     
@@ -57,7 +57,7 @@ def all_prices(cursor, base_name, interval):
         currencyPairId, 
         'SELECT ID_SET(id) FROM pairs WHERE baseName = ''{base_name}'' AND quoteName = ''United States Dollar'''
         ) = 1
-    AND tsMs > cast(ago((%(intervalString)s)) as long)
+    AND tsMs > cago(%(intervalString)s)
     ORDER BY tsMs DESC
     LIMIT 10000
     """, {"baseName": base_name,"intervalString": f"PT{interval}M"})
@@ -71,7 +71,7 @@ def get_pairs(cursor, base_name, interval):
         currencyPairId, 
         'SELECT ID_SET(id) FROM pairs WHERE baseName = ''{base_name}'''
         ) = 1
-    AND tsMs > cast(ago((%(intervalString)s)) as long)
+    AND tsMs > ago(%(intervalString)s)
     group by market
 	order by count DESC
     """, {"baseName": base_name, "intervalString": f"PT{interval}M"})
@@ -86,7 +86,7 @@ def get_assets(cursor, base_name, interval):
         currencyPairId, 
         'SELECT ID_SET(id) FROM pairs WHERE baseName = ''{base_name}'''
         ) = 1
-    AND tsMs > cast(ago((%(intervalString)s)) as long) 
+    AND tsMs > ago(%(intervalString)s)
     group by asset
 	order by count DESC
     """, {"baseName": base_name, "intervalString": f"PT{interval}M"})
@@ -102,7 +102,7 @@ def get_order_side(cursor, base_name, interval):
         'SELECT ID_SET(id) FROM pairs WHERE baseName = ''{base_name}'''
         ) = 1
     AND orderSide != 'null'
-    AND tsMs > cast(ago((%(intervalString)s)) as long) 
+    AND tsMs > ago(%(intervalString)s)
     group by orderSide
 	order by count DESC
     """, {"baseName": base_name, "intervalString": f"PT{interval}M"})
@@ -133,7 +133,7 @@ def get_all_pairs(cursor, interval):
        avg(amount) as averageTrade,
        sum(amount) AS amountTraded
     from trades 
-    where tsMs > cast(ago((%(intervalString)s)) as long)
+    where tsMs > ago(%(intervalString)s)
     group by quote, base
     order by transactions DESC
     limit 10
@@ -151,7 +151,7 @@ def get_all_assets(cursor, interval):
            count(*) AS count, sum(amount) AS amountTraded		   
     from trades 
     WHERE lookUp('pairs', 'quoteName', 'id', currencyPairId) = 'United States Dollar'
-    AND tsMs > cast(ago((%(intervalString)s)) as long)
+    AND tsMs > ago(%(intervalString)s)
 	group by baseName
 	order by count DESC
     """, {"intervalString": f"PT{interval}M"})
@@ -166,7 +166,7 @@ def get_aggregate_trades_current_period(cursor, interval):
     cursor.execute("""
     select count(*) AS count, sum(amount) AS amountTraded	   
     from trades 
-    WHERE tsMs > cast(ago((%(intervalString)s)) as long)
+    WHERE tsMs > ago(%(intervalString)s)
 	order by count DESC
     """, {"intervalString": f"PT{interval}M"})
 
@@ -176,8 +176,8 @@ def get_aggregate_trades_previous_period(cursor, interval):
     cursor.execute("""
     select count(*) AS count, sum(amount) AS amountTraded	   
     from trades 
-    WHERE tsMs < cast(ago((%(intervalString)s)) as long)
-    AND tsMs > cast(ago((%(previousIntervalString)s)) as long)
+    WHERE tsMs < ago(%(intervalString)s)
+    AND tsMs > ago(%(previousIntervalString)s)
 	order by count DESC
     """, {"intervalString": f"PT{interval}M", "previousIntervalString": f"PT{interval*2}M"})
 
@@ -188,7 +188,7 @@ def get_exchange_buy_side(cursor, interval):
     select lookUp('exchanges', 'name', 'id', exchangeId) AS exchangeName, count(*) AS transactions
     from trades
     where orderSide = 'BUYSIDE'
-    AND tsMs > cast(ago((%(intervalString)s)) as long)
+    AND tsMs > ago(%(intervalString)s)
     group by exchangeName
     order by transactions DESC
     """, {"intervalString": f"PT{interval}M"})
@@ -199,7 +199,7 @@ def get_quote_buy_side(cursor, interval):
     select lookUp('pairs', 'quoteName', 'id', currencyPairId) AS quoteName, count(*) AS transactions
     from trades
     where orderSide = 'BUYSIDE'
-    AND tsMs > cast(ago((%(intervalString)s)) as long)
+    AND tsMs > ago(%(intervalString)s)
     group by quoteName
     order by transactions DESC
     """, {"intervalString": f"PT{interval}M"})
@@ -212,7 +212,7 @@ def get_top_pairs_buy_side(cursor, quote_name, interval):
            lookUp('pairs', 'quoteName', 'id', currencyPairId) AS quoteName
     from trades 
     where quoteName = (%(quoteName)s) AND orderSide = 'BUYSIDE'
-    AND tsMs > cast(ago((%(intervalString)s)) as long)
+    AND tsMs > ago(%(intervalString)s)
     group by baseName, quoteName
     order by totalAmount DESC
     """, {"quoteName": quote_name, "intervalString": f"PT{interval}M"})
@@ -225,7 +225,7 @@ def get_top_pairs_sell_side(cursor, quote_name, interval):
            lookUp('pairs', 'quoteName', 'id', currencyPairId) AS quoteName
     from trades 
     where quoteName = (%(quoteName)s) AND orderSide = 'SELLSIDE'
-    AND tsMs > cast(ago((%(intervalString)s)) as long)
+    AND tsMs > ago(%(intervalString)s)
     group by baseName, quoteName
     order by totalAmount DESC
     """, {"quoteName": quote_name, "intervalString": f"PT{interval}M"})

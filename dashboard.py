@@ -89,7 +89,7 @@ def assets_page(base_name, n, interval):
     cursor = connection.cursor()
 
     results = {}
-    with concurrent.futures.ProcessPoolExecutor() as executor:
+    with concurrent.futures.ThreadPoolExecutor() as executor:
         futures = {
             executor.submit(querydb.latest_period_prices, cursor, base_name, interval): "now",
             executor.submit(querydb.previous_period_prices, cursor, base_name, interval): "prev",
@@ -152,7 +152,7 @@ def overview(n, interval):
     cursor = connection.cursor()
 
     results = {}
-    with concurrent.futures.ProcessPoolExecutor() as executor:
+    with concurrent.futures.ThreadPoolExecutor() as executor:
         futures = {
             executor.submit(querydb.get_all_pairs, cursor, interval): "pairs",
             executor.submit(querydb.get_all_assets, cursor, interval): "assets",
@@ -209,7 +209,7 @@ def charts(n, value, interval):
     cursor = connection.cursor()
 
     results = {}
-    with concurrent.futures.ProcessPoolExecutor() as executor:
+    with concurrent.futures.ThreadPoolExecutor() as executor:
         futures = {
             executor.submit(querydb.get_top_pairs_buy_side, cursor, value, interval): "buy_side",
             executor.submit(querydb.get_exchange_buy_side, cursor, interval): "exchange",
